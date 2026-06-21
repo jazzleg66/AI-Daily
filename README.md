@@ -76,9 +76,17 @@ xcopy /E /I "AI-Daily\skills\ai-daily" "%USERPROFILE%\.claude\skills\ai-daily"
 
 Clone the repo and point your agent at `skills/ai-daily/SKILL.md` as context. Set `<BASE>` to the `skills/ai-daily/` directory path.
 
-**2. Configure X.com credentials**
+---
 
-Create the credentials file:
+**After installing: install dependencies and configure X.com credentials**
+
+Install the X.com scraping library:
+
+```bash
+pip install "twscrape[curl]"
+```
+
+Then create the credentials file:
 
 ```bash
 # macOS / Linux
