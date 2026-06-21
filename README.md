@@ -63,10 +63,12 @@ Claude Code downloads and registers the skill automatically. Generated files go 
 ```bash
 # macOS / Linux
 git clone https://github.com/jazzleg66/AI-Daily.git
+mkdir -p ~/.claude/skills
 cp -r AI-Daily/skills/ai-daily ~/.claude/skills/ai-daily
 
 # Windows
 git clone https://github.com/jazzleg66/AI-Daily.git
+mkdir "%USERPROFILE%\.claude\skills" 2>nul
 xcopy /E /I "AI-Daily\skills\ai-daily" "%USERPROFILE%\.claude\skills\ai-daily"
 ```
 
