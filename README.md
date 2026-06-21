@@ -115,22 +115,35 @@ Claude will run the fetch scripts, show you a summary, save a Markdown file, and
 ## File structure
 
 ```
-ai-daily/
-├── SKILL.md                        # Skill definition — Claude reads this
+AI-Daily/
+├── .gitignore
+├── README.md
+├── SKILL.md                          # Skill definition — Claude reads this
+├── resources.md                      # Source list
 ├── scripts/
-│   ├── fetch_news.py               # Fetches Anthropic, OpenAI, blogs, newsletters
-│   ├── fetch_youtube.py            # Fetches AI YouTube channels via RSS
-│   └── fetch_x.py                  # Fetches X.com posts via twscrape
+│   ├── fetch_news.py                 # Fetches Anthropic, OpenAI, blogs, newsletters
+│   ├── fetch_youtube.py              # Fetches AI YouTube channels via RSS
+│   └── fetch_x.py                    # Fetches X.com posts via twscrape
 ├── assets/
 │   ├── rationalist/
-│   │   ├── template.html           # Rationalist HTML template
-│   │   ├── spotlight.jpg           # Hero image (Spotlight section)
-│   │   └── youtubepicks.jpg        # Hero image (YouTube section)
+│   │   ├── template.html             # Rationalist HTML template
+│   │   ├── spotlight.jpg             # Hero image (Spotlight section)
+│   │   └── youtubepicks.jpg          # Hero image (YouTube section)
 │   └── modernism/
-│       ├── template.html           # Modernism HTML template
-│       ├── spotlight.png           # Hero image (Spotlight section)
-│       └── youtubepicks.png        # Hero image (YouTube section)
-└── resources.md                    # Source list
+│       ├── template.html             # Modernism HTML template
+│       ├── spotlight.png             # Hero image (Spotlight section)
+│       └── youtubepicks.png          # Hero image (YouTube section)
+├── output/                           # Pre-created; all generated files go here
+│   ├── spotlight.jpg                 # Required by Rationalist HTML (tracked)
+│   ├── youtubepicks.jpg              # Required by Rationalist HTML (tracked)
+│   ├── spotlight.png                 # Required by Modernism HTML (tracked)
+│   ├── youtubepicks.png              # Required by Modernism HTML (tracked)
+│   ├── daily-brief-YYYY-MM-DD.md    # Generated: bilingual Markdown digest (gitignored)
+│   ├── r-brief-YYYY-MM-DD.html      # Generated: Rationalist layout (gitignored)
+│   └── m-brief-YYYY-MM-DD.html      # Generated: Modernism layout (gitignored)
+└── screenshots/
+    ├── rationalist-preview.jpeg
+    └── modernism-preview.jpeg
 ```
 
 ---
