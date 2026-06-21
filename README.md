@@ -51,8 +51,13 @@ Inspired by [Monocle](https://monocle.com/) — minimal black and white, large E
 
 **Option 1 — Plugin marketplace (recommended)**
 
+Step 1 — Add the marketplace source:
 ```
 /plugin marketplace add https://github.com/jazzleg66/AI-Daily
+```
+
+Step 2 — Install the skill:
+```
 /plugin install ai-daily@ai-daily
 ```
 
