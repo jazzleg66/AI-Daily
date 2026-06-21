@@ -49,19 +49,26 @@ Inspired by [Monocle](https://monocle.com/) — minimal black and white, large E
 
 ## Setup
 
-**1. Clone the repo into your Claude Code skills directory**
+**1. Install via Claude Code plugin marketplace (recommended)**
 
-Claude Code loads skills from `~/.claude/skills/`. Clone this repo directly into that folder so all scripts, assets, and templates are available to the skill:
+```
+/plugin marketplace add jazzleg66/AI-Daily
+/plugin install ai-daily@ai-daily
+```
+
+That's it. Claude Code downloads the skill and registers it automatically. Generated files go to `~/.claude/ai-daily/output/` on first run.
+
+**— or — Manual install**
 
 ```bash
 # macOS / Linux
-git clone https://github.com/jazzleg66/AI-Daily.git ~/.claude/skills/ai-daily
+git clone https://github.com/jazzleg66/AI-Daily.git
+cp -r AI-Daily/skills/ai-daily ~/.claude/skills/ai-daily
 
 # Windows
-git clone https://github.com/jazzleg66/AI-Daily.git "%USERPROFILE%\.claude\skills\ai-daily"
+git clone https://github.com/jazzleg66/AI-Daily.git
+xcopy /E /I "AI-Daily\skills\ai-daily" "%USERPROFILE%\.claude\skills\ai-daily"
 ```
-
-The `output/` folder is pre-created inside the repo with all required hero images — no extra setup needed.
 
 **2. Configure X.com credentials**
 
@@ -116,35 +123,39 @@ Claude will run the fetch scripts, show you a summary, save a Markdown file, and
 
 ```
 AI-Daily/
+├── .claude-plugin/
+│   ├── marketplace.json              # Plugin marketplace catalog
+│   └── plugin.json                   # Plugin manifest
 ├── .gitignore
 ├── README.md
-├── SKILL.md                          # Skill definition — Claude reads this
 ├── resources.md                      # Source list
-├── scripts/
-│   ├── fetch_news.py                 # Fetches Anthropic, OpenAI, blogs, newsletters
-│   ├── fetch_youtube.py              # Fetches AI YouTube channels via RSS
-│   └── fetch_x.py                    # Fetches X.com posts via twscrape
-├── assets/
-│   ├── rationalist/
-│   │   ├── template.html             # Rationalist HTML template
-│   │   ├── spotlight.jpg             # Hero image (Spotlight section)
-│   │   └── youtubepicks.jpg          # Hero image (YouTube section)
-│   └── modernism/
-│       ├── template.html             # Modernism HTML template
-│       ├── spotlight.png             # Hero image (Spotlight section)
-│       └── youtubepicks.png          # Hero image (YouTube section)
-├── output/                           # Pre-created; all generated files go here
-│   ├── spotlight.jpg                 # Required by Rationalist HTML (tracked)
-│   ├── youtubepicks.jpg              # Required by Rationalist HTML (tracked)
-│   ├── spotlight.png                 # Required by Modernism HTML (tracked)
-│   ├── youtubepicks.png              # Required by Modernism HTML (tracked)
-│   ├── daily-brief-YYYY-MM-DD.md    # Generated: bilingual Markdown digest (gitignored)
-│   ├── r-brief-YYYY-MM-DD.html      # Generated: Rationalist layout (gitignored)
-│   └── m-brief-YYYY-MM-DD.html      # Generated: Modernism layout (gitignored)
+├── skills/
+│   └── ai-daily/
+│       ├── SKILL.md                  # Skill definition — Claude reads this
+│       ├── scripts/
+│       │   ├── fetch_news.py         # Fetches Anthropic, OpenAI, blogs, newsletters
+│       │   ├── fetch_youtube.py      # Fetches AI YouTube channels via RSS
+│       │   └── fetch_x.py            # Fetches X.com posts via twscrape
+│       ├── assets/
+│       │   ├── rationalist/
+│       │   │   ├── template.html     # Rationalist HTML template
+│       │   │   ├── spotlight.jpg     # Hero image (Spotlight section)
+│       │   │   └── youtubepicks.jpg  # Hero image (YouTube section)
+│       │   └── modernism/
+│       │       ├── template.html     # Modernism HTML template
+│       │       ├── spotlight.png     # Hero image (Spotlight section)
+│       │       └── youtubepicks.png  # Hero image (YouTube section)
+│       └── output/                   # Seed images only (tracked); generated files go to ~/.claude/ai-daily/output/
+│           ├── spotlight.jpg
+│           ├── youtubepicks.jpg
+│           ├── spotlight.png
+│           └── youtubepicks.png
 └── screenshots/
     ├── rationalist-preview.jpeg
     └── modernism-preview.jpeg
 ```
+
+Generated files (`daily-brief-*.md`, `r-brief-*.html`, `m-brief-*.html`) are saved to `~/.claude/ai-daily/output/` — outside the plugin, so they persist across updates and are easy to find.
 
 ---
 

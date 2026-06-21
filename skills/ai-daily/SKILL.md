@@ -9,16 +9,16 @@ description: Daily AI news briefing skill. Fetches today's content from independ
 Fetch and present today's AI news in a bilingual digest with a professional HTML newspaper layout.
 
 ## Paths
-All paths below are relative to this skill's base directory, which Claude Code provides in the system context as "Base directory for this skill: ...". Use it to construct absolute paths for all bash commands.
+All paths use `<BASE>` — the skill's base directory, which Claude Code provides in the system context as "Base directory for this skill: ...". Use it to construct absolute paths for all bash commands.
 
-- Scripts: `scripts/`
-- Templates: `assets/rationalist/` and `assets/modernism/`
-- Output: `output/` — pre-created; all 4 hero images already included
+- Scripts: `<BASE>/scripts/`
+- Templates: `<BASE>/assets/rationalist/` and `<BASE>/assets/modernism/`
+- Seed images: `<BASE>/output/` — hero images bundled with the skill
+- **Generated output: `~/.claude/ai-daily/output/`** — fixed location outside the skill, persists across updates
 
 ## Setup Requirements
 - **X.com credentials:** `~/.claude/private/x-creds.json` (see README for details)
 - **twscrape:** `pip install "twscrape[curl]"`
-- **Output directory:** `output/` inside this skill's base directory (already exists in the repo)
 
 ## Trigger Phrases
 - "daily brief" / "ai news" / "today's ai news"
@@ -34,6 +34,25 @@ Beijing Time (UTC+8).
 
 - **File name:** today's date (the run date). e.g. run on 2026-06-20 → `daily-brief-2026-06-20.md`
 - **Content window:** yesterday (full 24 hours) + today up to the current run time. e.g. run at 10:00 AM on 6/20 → include all 6/19 content + any 6/20 content published before 10:00 AM Beijing time.
+
+### Step 1.5 — Initialize Output Directory (first run only)
+Check if `~/.claude/ai-daily/output/` exists. If not, create it and copy the hero images there. Run silently.
+
+```bash
+# macOS / Linux
+mkdir -p ~/.claude/ai-daily/output
+for img in spotlight.jpg youtubepicks.jpg spotlight.png youtubepicks.png; do
+  [ ! -f ~/.claude/ai-daily/output/$img ] && cp "<BASE>/output/$img" ~/.claude/ai-daily/output/$img || true
+done
+```
+```powershell
+# Windows
+if (-not (Test-Path "$env:USERPROFILE\.claude\ai-daily\output")) { New-Item -ItemType Directory -Path "$env:USERPROFILE\.claude\ai-daily\output" -Force | Out-Null }
+foreach ($img in @("spotlight.jpg","youtubepicks.jpg","spotlight.png","youtubepicks.png")) {
+  $dst = "$env:USERPROFILE\.claude\ai-daily\output\$img"
+  if (-not (Test-Path $dst)) { Copy-Item "<BASE>\output\$img" $dst }
+}
+```
 
 ### Step 2 — Run All Fetch Scripts (parallel)
 
@@ -75,15 +94,17 @@ Ask the user to confirm before continuing.
 
 ### Step 4 — Save Markdown File & Ask About HTML
 
-Save the full digest as a Markdown file to the `output/` directory:
-`<BASE>/output/daily-brief-YYYY-MM-DD.md`
+Save the full digest as a Markdown file:
+
+- macOS/Linux: `~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md`
+- Windows: `%USERPROFILE%\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md`
 
 Then open it:
 ```bash
 # Windows
-start "<BASE>/output/daily-brief-YYYY-MM-DD.md"
+start "%USERPROFILE%\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md"
 # macOS
-open "<BASE>/output/daily-brief-YYYY-MM-DD.md"
+open ~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md
 ```
 
 In chat, output only a brief confirmation: filename saved, total item counts per section, and 1-line summary of the top insight.
@@ -111,7 +132,7 @@ When the user confirms HTML output, ask:
 
 **Do NOT generate HTML from scratch.** Always read the template for the chosen style, fill placeholders, expand REPEAT blocks, and save.
 
-Images are already pre-placed in `output/` — no copying needed.
+Hero images are pre-placed in `~/.claude/ai-daily/output/` (seeded in Step 1.5) — no copying needed during HTML generation.
 
 ---
 
@@ -119,19 +140,21 @@ Images are already pre-placed in `output/` — no copying needed.
 
 **Template:** `<BASE>/assets/rationalist/template.html`
 
-**Output file:** `<BASE>/output/r-brief-YYYY-MM-DD.html`
+**Output file:**
+- macOS/Linux: `~/.claude/ai-daily/output/r-brief-YYYY-MM-DD.html`
+- Windows: `%USERPROFILE%\.claude\ai-daily\output\r-brief-YYYY-MM-DD.html`
 
 **Steps:**
-1. Read `assets/rationalist/template.html`
+1. Read `<BASE>/assets/rationalist/template.html`
 2. Fill every `{{PLACEHOLDER}}` with today's content from the Markdown digest
 3. For Spotlight and YouTube Picks: expand `<!-- REPEAT ... /REPEAT -->` blocks — one `.si` card per article/video beyond the hero
-4. Save the filled HTML to `output/r-brief-YYYY-MM-DD.html`
+4. Save the filled HTML to the output path above
 5. Open the file:
 ```bash
 # Windows
-start "<BASE>/output/r-brief-YYYY-MM-DD.html"
+start "%USERPROFILE%\.claude\ai-daily\output\r-brief-YYYY-MM-DD.html"
 # macOS
-open "<BASE>/output/r-brief-YYYY-MM-DD.html"
+open ~/.claude/ai-daily/output/r-brief-YYYY-MM-DD.html
 ```
 
 **Layout notes:**
@@ -171,21 +194,23 @@ open "<BASE>/output/r-brief-YYYY-MM-DD.html"
 
 **Template:** `<BASE>/assets/modernism/template.html`
 
-**Output file:** `<BASE>/output/m-brief-YYYY-MM-DD.html`
+**Output file:**
+- macOS/Linux: `~/.claude/ai-daily/output/m-brief-YYYY-MM-DD.html`
+- Windows: `%USERPROFILE%\.claude\ai-daily\output\m-brief-YYYY-MM-DD.html`
 
 **Steps:**
-1. Read `assets/modernism/template.html`
+1. Read `<BASE>/assets/modernism/template.html`
 2. Fill every `{{PLACEHOLDER}}` with today's content from the Markdown digest
 3. For Spotlight stack: expand `<!-- REPEAT .stack-item /REPEAT -->` — one `.stack-item` per article beyond the hero (stack items have no summary, only tag + title + byline + CTA)
 4. For YouTube Picks: expand `<!-- REPEAT .card /REPEAT -->` — one `.card` per video (all videos are cards; there is no separate hero video)
 5. For X.com: expand `<!-- REPEAT .x-row /REPEAT -->` — one `.x-row` per post
-6. Save the filled HTML to `output/m-brief-YYYY-MM-DD.html`
+6. Save the filled HTML to the output path above
 7. Open the file:
 ```bash
 # Windows
-start "<BASE>/output/m-brief-YYYY-MM-DD.html"
+start "%USERPROFILE%\.claude\ai-daily\output\m-brief-YYYY-MM-DD.html"
 # macOS
-open "<BASE>/output/m-brief-YYYY-MM-DD.html"
+open ~/.claude/ai-daily/output/m-brief-YYYY-MM-DD.html
 ```
 
 **Layout notes:**
@@ -315,4 +340,4 @@ The file has two self-contained halves. Do NOT interleave Chinese and English li
 ---
 
 ## Security Note
-Your X.com credentials are personal — never commit `x-creds.json` to any repo. The `.gitignore` in this repo already excludes it. Share only `SKILL.md` and the `scripts/` folder when distributing this skill.
+Your X.com credentials are personal — never commit `x-creds.json` to any repo. The `.gitignore` in this repo already excludes it.

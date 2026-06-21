@@ -3,9 +3,9 @@ private/
 x-creds.json
 **/x-creds.json
 
-# Generated output — ignore files, keep images
-output/*.html
-output/*.md
+# Generated output — ignore files, keep seed images
+skills/ai-daily/output/*.html
+skills/ai-daily/output/*.md
 
 # Python
 __pycache__/
