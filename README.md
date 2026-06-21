@@ -52,11 +52,13 @@ Inspired by [Monocle](https://monocle.com/) — minimal black and white, large E
 **Option 1 — Plugin marketplace (recommended)**
 
 ```
-/plugin marketplace add jazzleg66/AI-Daily
+/plugin marketplace add https://github.com/jazzleg66/AI-Daily
 /plugin install ai-daily@ai-daily
 ```
 
 Claude Code downloads and registers the skill automatically. Generated files go to `~/.claude/ai-daily/output/` on first run.
+
+> Use the full HTTPS URL — the shorthand `owner/repo` form may attempt SSH and fail if you don't have SSH keys configured for GitHub.
 
 **Option 2 — Manual copy**
 
