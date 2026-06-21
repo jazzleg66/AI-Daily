@@ -49,16 +49,16 @@ Inspired by [Monocle](https://monocle.com/) — minimal black and white, large E
 
 ## Setup
 
-**1. Install via Claude Code plugin marketplace (recommended)**
+**Option 1 — Plugin marketplace (recommended)**
 
 ```
 /plugin marketplace add jazzleg66/AI-Daily
 /plugin install ai-daily@ai-daily
 ```
 
-That's it. Claude Code downloads the skill and registers it automatically. Generated files go to `~/.claude/ai-daily/output/` on first run.
+Claude Code downloads and registers the skill automatically. Generated files go to `~/.claude/ai-daily/output/` on first run.
 
-**— or — Manual install**
+**Option 2 — Manual copy**
 
 ```bash
 # macOS / Linux
@@ -69,6 +69,10 @@ cp -r AI-Daily/skills/ai-daily ~/.claude/skills/ai-daily
 git clone https://github.com/jazzleg66/AI-Daily.git
 xcopy /E /I "AI-Daily\skills\ai-daily" "%USERPROFILE%\.claude\skills\ai-daily"
 ```
+
+**Option 3 — Other AI coding agents**
+
+Clone the repo and point your agent at `skills/ai-daily/SKILL.md` as context. Set `<BASE>` to the `skills/ai-daily/` directory path.
 
 **2. Configure X.com credentials**
 
@@ -96,19 +100,33 @@ To get your cookies: log into x.com in a browser, open DevTools → Application 
 
 ## Usage
 
-In Claude Code, just say:
+After installing, invoke the skill in Claude Code with the slash command:
+
+```
+/ai-daily:ai-daily
+```
+
+Or just say it in plain language:
 
 ```
 today's daily brief
 ```
-
-or
 
 ```
 今天的 AI 日报
 ```
 
 Claude will run the fetch scripts, show you a summary, save a Markdown file, and ask if you want the HTML newspaper.
+
+### Use with other AI coding agents
+
+This skill can also be used with other AI coding agents (Cursor, Windsurf, etc.) by referencing the SKILL.md directly from the repo:
+
+```
+skills/ai-daily/SKILL.md
+```
+
+Point your agent at that file as a system prompt or context document. Scripts and assets are referenced via `<BASE>` — set that to the `skills/ai-daily/` directory.
 
 ### Customise your sources
 
