@@ -148,6 +148,23 @@ AI-Daily/
 
 ---
 
+## Troubleshooting
+
+**`git clone` fails with "Connection was reset" (China users)**
+
+Your browser can reach GitHub but `git` doesn't route through your VPN/proxy by default. Fix:
+
+```bash
+git config --global http.proxy http://127.0.0.1:7890
+git config --global https.proxy http://127.0.0.1:7890
+```
+
+Replace `7890` with your proxy's actual port (Clash default: 7890, V2Ray: 1080 or 10809). Then retry `git clone`.
+
+To unset later: `git config --global --unset http.proxy && git config --global --unset https.proxy`
+
+---
+
 ## Design credits
 
 - **Modernism style** — layout and typography inspired by [Monocle](https://monocle.com/)
