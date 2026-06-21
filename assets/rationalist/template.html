@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Daily — {{DATE_EN}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #fff7f4;
+      --text:      #121212;
+      --muted:     #121212;   /* all text black except nav-bar override below */
+      --border:    #1d1d1d;   /* all lines black */
+      --line:      #1d1d1d;
+      --brown:     #121212;   /* article summaries black */
+      --blue:      #363b8f;
+      --red:       #e20a39;
+      --gold:      #f4d06f;
+      --gold-dark: #4c3906;
+      --sage:      #cee0dc;
+      --sage-dark: #073429;
+      --serif: 'Spectral', 'Songti SC', Georgia, serif;
+      --mono:  'JetBrains Mono', 'Courier New', monospace;
+      --pad: 40px;
+      --max: 1120px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--serif); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 0 var(--pad); }
+
+    /* ── STICKY HEADER (masthead + nav) ── */
+    .site-header { position: sticky; top: 0; z-index: 100; background: var(--bg); }
+    .masthead { border-top: 3px solid var(--text); }
+    .mh { display: flex; justify-content: space-between; align-items: flex-end; padding: 16px 0 14px; }
+    .mh-eye { font-family: var(--mono); font-size: 10px; font-weight: 300; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .mh-name { font-family: 'GT America Mono', 'GT America Mono Light', var(--mono); font-size: 28px; font-weight: 300; letter-spacing: 0.04em; line-height: 1; }
+    .mh-date { font-family: var(--mono); font-size: 12px; font-weight: 300; color: var(--muted); text-align: right; line-height: 1.6; }
+    .mh-rule { border: none; border-bottom: 1px solid var(--border); }
+
+    /* ── NAVIGATION: section anchors left + language toggles right ── */
+    /* Nav bar restores grey for font only; lines remain black */
+    .nav-bar { --muted: #888880; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    .sec-toggles { display: flex; }
+    .sec-toggle { font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0.04em; color: var(--muted); padding: 10px 16px; cursor: pointer; text-decoration: none; border-right: 1px solid var(--border); display: inline-block; transition: background 0.1s, color 0.1s; }
+    .sec-toggle:last-child { border-right: none; }
+    .sec-toggle.on { color: var(--text); font-weight: 500; }
+    .sec-toggle:hover { color: var(--text); background: var(--gold); }
+    .lang-toggles { display: flex; }
+    .tab { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.04em; color: var(--muted); padding: 10px 16px; cursor: pointer; border: none; background: none; border-left: 1px solid var(--border); transition: background 0.1s, color 0.1s; }
+    .tab.on { color: var(--text); }
+    .tab:hover { background: var(--gold); color: var(--text); }
+    .panel { display: none; padding-top: 36px; padding-bottom: 56px; }
+    .panel.on { display: block; }
+
+    /* ── SECTION SCROLL OFFSET (clears sticky header ~110px) ── */
+    .art-sec { scroll-margin-top: 115px; }
+
+    /* ── SECTION LABEL ── */
+    .sec { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.10em; text-transform: uppercase; color: var(--muted); margin-bottom: 20px; }
+    .sec-dot { width: 8px; height: 8px; flex-shrink: 0; }
+    .sec-rule { flex: 1; height: 1px; background: var(--border); }
+
+    /* ── SECTION WRAPPER ── */
+    .art-sec { padding: 40px 0; border-bottom: 1px solid var(--border); }
+    .art-sec.last { border-bottom: none; }
+
+    /* ══ SPOTLIGHT / YOUTUBE PICKS — sticky hero left + 2-col card grid right ══
+       spotlight.jpg and youtubepicks.jpg are fixed images stored alongside this template. */
+    .spot { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; align-items: start; }
+    .spot-hero { display: flex; flex-direction: column; border: 1px solid var(--line); overflow: hidden; position: sticky; top: 0; }
+    .hero-img { width: 100%; height: 280px; object-fit: cover; display: block; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+    .hero-cap { padding: 24px 28px 22px; display: flex; flex-direction: column; flex: 0 0 auto; }
+    .hero-t { font-family: var(--serif); font-size: 28px; font-weight: 700; line-height: 1.16; letter-spacing: -0.01em; margin: 0; }
+    .hero-t a { color: inherit; }
+    .hero-by { font-family: var(--mono); font-size: 11px; font-weight: 400; margin-top: 9px; }
+    .hero-by b { font-weight: 700; }
+    .hero-sum { font-family: var(--serif); font-size: 14px; line-height: 1.55; margin-top: 14px; }
+    .hero-more { font-family: var(--serif); font-weight: 700; font-size: 13px; text-align: right; margin-top: auto; padding-top: 16px; }
+    .hero-more span { font-weight: 400; }
+    .hero-foot { display: flex; }
+    .hero-tag-cell { font-family: var(--mono); font-size: 10.5px; font-weight: 400; letter-spacing: 0.02em; padding: 7px 14px; min-width: 30%; }
+
+    /* Light text on blue caption (Spotlight) */
+    .h-lt .hero-cap      { background: var(--blue); }
+    .h-lt .hero-t        { color: #fff7f4; }
+    .h-lt .hero-by       { color: rgba(255,247,244,0.60); }
+    .h-lt .hero-by b     { color: #fff7f4; }
+    .h-lt .hero-sum      { color: rgba(255,247,244,0.80); }
+    .h-lt .hero-more a   { color: #fff7f4; }
+    .h-lt .hero-foot     { background: var(--blue); border-top: 1px solid rgba(255,247,244,0.28); }
+    .h-lt .hero-tag-cell { color: rgba(255,247,244,0.85); border-right: 1px solid rgba(255,247,244,0.28); }
+
+    /* Dark text on gold caption (YouTube Picks) */
+    .h-dk .hero-cap      { background: var(--gold); }
+    .h-dk .hero-t        { color: var(--gold-dark); }
+    .h-dk .hero-by       { color: rgba(76,57,6,0.60); }
+    .h-dk .hero-by b     { color: var(--gold-dark); }
+    .h-dk .hero-sum      { color: rgba(76,57,6,0.80); }
+    .h-dk .hero-more a   { color: var(--gold-dark); }
+    .h-dk .hero-foot     { background: var(--gold); border-top: 1px solid rgba(76,57,6,0.28); }
+    .h-dk .hero-tag-cell { color: var(--gold-dark); border-right: 1px solid rgba(76,57,6,0.28); }
+
+    /* ── ARTICLE CARDS (right grid) ── */
+    .spot-r { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .si { display: flex; flex-direction: column; border: 1px solid var(--line); background: transparent; }
+    .si-body { padding: 18px 18px 16px; display: flex; flex-direction: column; flex: 1; min-height: 150px; }
+    .si-title { font-family: var(--serif); font-size: 18px; font-weight: 700; line-height: 1.16; letter-spacing: -0.01em; color: var(--text); margin: 0; }
+    .si-title a { color: inherit; }
+    .si-by { font-family: var(--mono); font-size: 10.5px; font-weight: 400; color: var(--muted); margin-top: 7px; }
+    .si-by b { font-weight: 700; color: var(--text); }
+    .si-sum { font-family: var(--serif); font-size: 12.5px; line-height: 1.5; color: var(--brown); margin-top: 12px; }
+    .si-more { font-family: var(--serif); font-weight: 700; font-size: 12.5px; text-align: right; margin-top: auto; padding-top: 14px; }
+    .si-more a { color: var(--text); }
+    .si-foot { display: flex; border-top: 1px solid var(--line); }
+    .si-tag { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--text); letter-spacing: 0.02em; padding: 6px 12px; border-right: 1px solid var(--line); min-width: 34%; }
+    .si-fill { flex: 1; }
+
+    /* ── X.COM — vertical feed ── */
+    .x-feed { display: flex; flex-direction: column; }
+    .x-row { display: flex; gap: 28px; padding: 18px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+    .x-row:first-child { padding-top: 0; }
+    .x-row:last-child { border-bottom: none; }
+    .x-meta { width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; }
+    .x-handle { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--sage-dark); }
+    .x-stats { font-family: var(--mono); font-size: 11px; font-weight: 300; color: var(--muted); }
+    .x-content { flex: 1; }
+    .x-body { font-family: var(--serif); font-size: 13.5px; line-height: 1.58; }
+    .x-lnk { font-family: var(--mono); font-size: 11px; font-weight: 300; color: var(--sage-dark); margin-top: 7px; display: inline-block; }
+
+    /* ── FOOTER ── */
+    .footer { border-top: 3px solid var(--text); padding: 20px 0; }
+    .fi { display: flex; justify-content: space-between; align-items: center; }
+    .f-brand { font-family: var(--serif); font-size: 14px; font-weight: 600; }
+    .f-credit { font-family: var(--mono); font-size: 11px; font-weight: 300; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="site-header">
+  <header class="masthead">
+    <div class="wrap">
+      <div class="mh">
+        <div>
+          <div class="mh-eye">Daily Intelligence</div>
+          <h1 class="mh-name">AI Daily</h1>
+        </div>
+        <div class="mh-date">{{DATE_EN}}<br>Beijing Time · UTC+8</div>
+      </div>
+    </div>
+    <hr class="mh-rule">
+  </header>
+
+  <div class="wrap">
+    <div class="nav-bar">
+      <div class="sec-toggles">
+        <a class="sec-toggle on" id="sec-spotlight" href="#sec-anchor-spotlight">Spotlight</a>
+        <a class="sec-toggle" id="sec-youtube" href="#sec-anchor-youtube">YouTube Picks</a>
+        <a class="sec-toggle" id="sec-x" href="#sec-anchor-x">X.com Posts</a>
+      </div>
+      <div class="lang-toggles">
+        <button class="tab on" id="tab-en" onclick="sw('en')">English</button>
+        <button class="tab"    id="tab-cn" onclick="sw('cn')">中文</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main>
+
+<!-- ══════════════════════════════════ ENGLISH ══════════════════════════════════ -->
+<div class="panel on" id="panel-en">
+<div class="wrap">
+
+  <!-- ── SPOTLIGHT ──────────────────────────────────────────────────────────── -->
+  <!-- Hero = most important Spotlight article (Official Updates or top news).   -->
+  <!-- Right grid = remaining Spotlight articles. Repeat .si for each item.     -->
+  <section class="art-sec sec-spotlight" id="sec-anchor-spotlight">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--blue)"></span>
+      Spotlight
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">Official {{OFFICIAL_COUNT}} · News {{NEWS_COUNT}}</span>
+    </div>
+    <div class="spot">
+
+      <div class="spot-hero h-lt">
+        <img class="hero-img" src="spotlight.jpg" alt="">
+        <div class="hero-cap">
+          <h3 class="hero-t"><a href="{{SPOTLIGHT_HERO_URL}}">{{SPOTLIGHT_HERO_TITLE_EN}}</a></h3>
+          <div class="hero-by">Words by <b>{{SPOTLIGHT_HERO_SOURCE}}</b></div>
+          <p class="hero-sum">{{SPOTLIGHT_HERO_SUMMARY_EN}}</p>
+          <div class="hero-more"><a href="{{SPOTLIGHT_HERO_URL}}">Read more <span>&rarr;</span></a></div>
+        </div>
+        <div class="hero-foot"><span class="hero-tag-cell">{{SPOTLIGHT_HERO_DATE}}</span><span class="si-fill"></span></div>
+      </div>
+
+      <div class="spot-r">
+        <!-- REPEAT this .si block for each additional Spotlight article -->
+        <div class="si">
+          <div class="si-body">
+            <h3 class="si-title"><a href="{{SPOTLIGHT_1_URL}}">{{SPOTLIGHT_1_TITLE_EN}}</a></h3>
+            <div class="si-by">Words by <b>{{SPOTLIGHT_1_SOURCE}}</b></div>
+            <p class="si-sum">{{SPOTLIGHT_1_SUMMARY_EN}}</p>
+            <div class="si-more"><a href="{{SPOTLIGHT_1_URL}}">Read more &rarr;</a></div>
+          </div>
+          <div class="si-foot"><span class="si-tag">{{SPOTLIGHT_1_DATE}}</span><span class="si-fill"></span></div>
+        </div>
+        <!-- /REPEAT -->
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── YOUTUBE PICKS ──────────────────────────────────────────────────────── -->
+  <!-- Hero = top YouTube video (most relevant or highest-quality pick).         -->
+  <!-- Right grid = remaining YouTube videos. Repeat .si for each item.         -->
+  <section class="art-sec sec-youtube" id="sec-anchor-youtube">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--gold-dark)"></span>
+      YouTube Picks
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">{{YT_COUNT}}</span>
+    </div>
+    <div class="spot">
+
+      <div class="spot-hero h-dk">
+        <img class="hero-img" src="youtubepicks.jpg" alt="">
+        <div class="hero-cap">
+          <h3 class="hero-t"><a href="{{YT_HERO_URL}}">{{YT_HERO_TITLE_EN}}</a></h3>
+          <div class="hero-by">Words by <b>{{YT_HERO_SOURCE}}</b></div>
+          <p class="hero-sum">{{YT_HERO_SUMMARY_EN}}</p>
+          <div class="hero-more"><a href="{{YT_HERO_URL}}">Watch <span>&rarr;</span></a></div>
+        </div>
+        <div class="hero-foot"><span class="hero-tag-cell">{{YT_HERO_DATE}}</span><span class="si-fill"></span></div>
+      </div>
+
+      <div class="spot-r">
+        <!-- REPEAT this .si block for each additional YouTube video -->
+        <div class="si">
+          <div class="si-body">
+            <h3 class="si-title"><a href="{{YT_1_URL}}">{{YT_1_TITLE_EN}}</a></h3>
+            <div class="si-by">Words by <b>{{YT_1_SOURCE}}</b></div>
+            <p class="si-sum">{{YT_1_SUMMARY_EN}}</p>
+            <div class="si-more"><a href="{{YT_1_URL}}">Watch &rarr;</a></div>
+          </div>
+          <div class="si-foot"><span class="si-tag">{{YT_1_DATE}}</span><span class="si-fill"></span></div>
+        </div>
+        <!-- /REPEAT -->
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── X.COM POSTS ────────────────────────────────────────────────────────── -->
+  <!-- Sorted by engagement (likes). Repeat .x-row for each post.               -->
+  <section class="art-sec sec-x last" id="sec-anchor-x">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--sage-dark)"></span>
+      X.com Top Posts
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">{{X_COUNT}} · by engagement</span>
+    </div>
+    <div class="x-feed">
+      <!-- REPEAT this .x-row block for each X post -->
+      <div class="x-row">
+        <div class="x-meta">
+          <span class="x-handle">{{X_1_HANDLE}}</span>
+          <span class="x-stats">❤ {{X_1_LIKES}} · {{X_1_DATE}}</span>
+        </div>
+        <div class="x-content">
+          <p class="x-body">{{X_1_BODY_EN}}</p>
+          <a href="{{X_1_URL}}" class="x-lnk">View post &rarr;</a>
+        </div>
+      </div>
+      <!-- /REPEAT -->
+    </div>
+  </section>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════ CHINESE ══════════════════════════════════ -->
+<div class="panel" id="panel-cn">
+<div class="wrap">
+
+  <!-- ── 精选报道 ────────────────────────────────────────────────────────────── -->
+  <section class="art-sec sec-spotlight">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--blue)"></span>
+      精选报道
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">官方 {{OFFICIAL_COUNT}} · 独立新闻 {{NEWS_COUNT}}</span>
+    </div>
+    <div class="spot">
+
+      <div class="spot-hero h-lt">
+        <img class="hero-img" src="spotlight.jpg" alt="">
+        <div class="hero-cap">
+          <h3 class="hero-t"><a href="{{SPOTLIGHT_HERO_URL}}">{{SPOTLIGHT_HERO_TITLE_CN}}</a></h3>
+          <div class="hero-by">来源 <b>{{SPOTLIGHT_HERO_SOURCE}}</b></div>
+          <p class="hero-sum">{{SPOTLIGHT_HERO_SUMMARY_CN}}</p>
+          <div class="hero-more"><a href="{{SPOTLIGHT_HERO_URL}}">阅读 <span>&rarr;</span></a></div>
+        </div>
+        <div class="hero-foot"><span class="hero-tag-cell">{{SPOTLIGHT_HERO_DATE}}</span><span class="si-fill"></span></div>
+      </div>
+
+      <div class="spot-r">
+        <!-- REPEAT this .si block for each additional Spotlight article -->
+        <div class="si">
+          <div class="si-body">
+            <h3 class="si-title"><a href="{{SPOTLIGHT_1_URL}}">{{SPOTLIGHT_1_TITLE_CN}}</a></h3>
+            <div class="si-by">来源 <b>{{SPOTLIGHT_1_SOURCE}}</b></div>
+            <p class="si-sum">{{SPOTLIGHT_1_SUMMARY_CN}}</p>
+            <div class="si-more"><a href="{{SPOTLIGHT_1_URL}}">阅读 &rarr;</a></div>
+          </div>
+          <div class="si-foot"><span class="si-tag">{{SPOTLIGHT_1_DATE}}</span><span class="si-fill"></span></div>
+        </div>
+        <!-- /REPEAT -->
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── YouTube 精选 ─────────────────────────────────────────────────────────── -->
+  <section class="art-sec sec-youtube">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--gold-dark)"></span>
+      YouTube 精选
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">{{YT_COUNT}} 条</span>
+    </div>
+    <div class="spot">
+
+      <div class="spot-hero h-dk">
+        <img class="hero-img" src="youtubepicks.jpg" alt="">
+        <div class="hero-cap">
+          <h3 class="hero-t"><a href="{{YT_HERO_URL}}">{{YT_HERO_TITLE_CN}}</a></h3>
+          <div class="hero-by">来源 <b>{{YT_HERO_SOURCE}}</b></div>
+          <p class="hero-sum">{{YT_HERO_SUMMARY_CN}}</p>
+          <div class="hero-more"><a href="{{YT_HERO_URL}}">观看 <span>&rarr;</span></a></div>
+        </div>
+        <div class="hero-foot"><span class="hero-tag-cell">{{YT_HERO_DATE}}</span><span class="si-fill"></span></div>
+      </div>
+
+      <div class="spot-r">
+        <!-- REPEAT this .si block for each additional YouTube video -->
+        <div class="si">
+          <div class="si-body">
+            <h3 class="si-title"><a href="{{YT_1_URL}}">{{YT_1_TITLE_CN}}</a></h3>
+            <div class="si-by">来源 <b>{{YT_1_SOURCE}}</b></div>
+            <p class="si-sum">{{YT_1_SUMMARY_CN}}</p>
+            <div class="si-more"><a href="{{YT_1_URL}}">观看 &rarr;</a></div>
+          </div>
+          <div class="si-foot"><span class="si-tag">{{YT_1_DATE}}</span><span class="si-fill"></span></div>
+        </div>
+        <!-- /REPEAT -->
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── X.com 热议 ───────────────────────────────────────────────────────────── -->
+  <section class="art-sec sec-x last">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--sage-dark)"></span>
+      X.com 热议
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">{{X_COUNT}} 条 · 按互动量排序</span>
+    </div>
+    <div class="x-feed">
+      <!-- REPEAT this .x-row block for each X post -->
+      <div class="x-row">
+        <div class="x-meta">
+          <span class="x-handle">{{X_1_HANDLE}}</span>
+          <span class="x-stats">❤ {{X_1_LIKES}} · {{X_1_DATE}}</span>
+        </div>
+        <div class="x-content">
+          <p class="x-body">{{X_1_BODY_CN}}</p>
+          <a href="{{X_1_URL}}" class="x-lnk">查看原帖 &rarr;</a>
+        </div>
+      </div>
+      <!-- /REPEAT -->
+    </div>
+  </section>
+
+</div>
+</div>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="fi">
+      <span class="f-brand">AI Daily</span>
+      <span class="f-credit">{{DATE_EN}} · Spotlight {{OFFICIAL_COUNT}} + {{NEWS_COUNT}} · YouTube {{YT_COUNT}} · X.com {{X_COUNT}}</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /* Language switch */
+  function sw(lang) {
+    ['en','cn'].forEach(l => {
+      document.getElementById('tab-' + l).classList.toggle('on', l === lang);
+      document.getElementById('panel-' + l).classList.toggle('on', l === lang);
+    });
+    updateActiveNav();
+  }
+
+  /* Highlight active nav link based on scroll position */
+  const SECS = ['spotlight', 'youtube', 'x'];
+  function updateActiveNav() {
+    const headerH = document.querySelector('.site-header').offsetHeight + 20;
+    let active = SECS[0];
+    SECS.forEach(id => {
+      const el = document.getElementById('sec-anchor-' + id);
+      if (el && el.getBoundingClientRect().top <= headerH) active = id;
+    });
+    SECS.forEach(id => {
+      document.getElementById('sec-' + id).classList.toggle('on', id === active);
+    });
+  }
+
+  window.addEventListener('scroll', updateActiveNav, { passive: true });
+  window.addEventListener('load', updateActiveNav);
+</script>
+</body>
+</html>

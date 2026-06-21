@@ -1,0 +1,18 @@
+# Personal credentials — never commit
+private/
+x-creds.json
+**/x-creds.json
+
+# Generated output — local only
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
