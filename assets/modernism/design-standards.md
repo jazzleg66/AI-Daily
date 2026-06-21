@@ -1,6 +1,6 @@
 # Modernism — Design Standards
 
-References: https://monocle.com/ · https://www.wallpaper.com/
+References: https://monocle.com/
 Source audit: Monocle theme CSS extracted June 2026 (frontend.css + inline custom properties)
 
 ## Philosophy
