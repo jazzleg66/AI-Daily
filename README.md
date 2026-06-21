@@ -76,13 +76,14 @@ To get your cookies: log into x.com in a browser, open DevTools → Application 
 
 **3. Register the skill in Claude Code**
 
-Add this to your `.claude/settings.json`:
-```json
-{
-  "skills": [
-    { "path": "path/to/ai-daily/SKILL.md" }
-  ]
-}
+Copy or symlink `SKILL.md` into your Claude Code skills directory:
+
+```bash
+# macOS / Linux
+cp path/to/AI-Daily/SKILL.md ~/.claude/skills/ai-daily.md
+
+# Windows
+copy "C:\path\to\AI-Daily\SKILL.md" "%USERPROFILE%\.claude\skills\ai-daily.md"
 ```
 
 ---
