@@ -98,20 +98,21 @@ Then create the credentials file:
 ```bash
 # macOS / Linux
 mkdir -p ~/.claude/private
-
-# Windows
-mkdir "%USERPROFILE%\.claude\private"
-```
-
-```json
-// ~/.claude/private/x-creds.json
+cat > ~/.claude/private/x-creds.json << 'EOF'
 {
   "auth_token": "your_auth_token_here",
   "ct0": "your_ct0_here"
 }
+EOF
 ```
 
-To get your cookies: log into x.com in a browser, open DevTools → Application → Cookies → copy `auth_token` and `ct0`.
+```powershell
+# Windows
+mkdir "%USERPROFILE%\.claude\private" 2>nul
+echo {"auth_token": "your_auth_token_here", "ct0": "your_ct0_here"} > "%USERPROFILE%\.claude\private\x-creds.json"
+```
+
+Replace `your_auth_token_here` and `your_ct0_here` with your actual cookies: log into x.com in a browser, open DevTools → Application → Cookies → copy `auth_token` and `ct0`.
 
 ---
 
