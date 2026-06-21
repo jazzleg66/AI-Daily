@@ -3,8 +3,9 @@ private/
 x-creds.json
 **/x-creds.json
 
-# Generated output — local only
-output/
+# Generated output — ignore files, keep images
+output/*.html
+output/*.md
 
 # Python
 __pycache__/

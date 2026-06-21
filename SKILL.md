@@ -8,10 +8,17 @@ description: Daily AI news briefing skill. Fetches today's content from independ
 ## Purpose
 Fetch and present today's AI news in a bilingual digest with a professional HTML newspaper layout.
 
+## Paths
+All paths below are relative to this skill's base directory, which Claude Code provides in the system context as "Base directory for this skill: ...". Use it to construct absolute paths for all bash commands.
+
+- Scripts: `scripts/`
+- Templates: `assets/rationalist/` and `assets/modernism/`
+- Output: `output/` — pre-created; all 4 hero images already included
+
 ## Setup Requirements
-- **X.com credentials:** Stored at `C:\Users\Alex\.claude\private\x-creds.json`
+- **X.com credentials:** `~/.claude/private/x-creds.json` (see README for details)
 - **twscrape:** `pip install "twscrape[curl]"`
-- **Output directory:** `D:\Users\Alex\EA\output\daily-brief\`
+- **Output directory:** `output/` inside this skill's base directory (already exists in the repo)
 
 ## Trigger Phrases
 - "daily brief" / "ai news" / "today's ai news"
@@ -30,22 +37,22 @@ Beijing Time (UTC+8).
 
 ### Step 2 — Run All Fetch Scripts (parallel)
 
-Run all three in one turn as parallel Bash calls:
+Run all three in one turn as parallel Bash calls. Replace `<BASE>` with the skill's base directory from context:
 
 ```bash
-python "D:\Users\Alex\EA\.claude\skills\ai-daily\scripts\fetch_youtube.py"
+python "<BASE>/scripts/fetch_youtube.py"
 ```
 ```bash
-python "D:\Users\Alex\EA\.claude\skills\ai-daily\scripts\fetch_x.py"
+python "<BASE>/scripts/fetch_x.py"
 ```
 ```bash
-python "D:\Users\Alex\EA\.claude\skills\ai-daily\scripts\fetch_news.py"
+python "<BASE>/scripts/fetch_news.py"
 ```
 
 Each script auto-retries failed requests up to 3 times (2s / 4s backoff) before giving up.
 
 **Script outputs:**
-- `fetch_youtube.py` → JSON array of videos from 10 AI channels
+- `fetch_youtube.py` → JSON array of videos from subscribed AI channels
 - `fetch_x.py` → JSON array of posts sorted by engagement (takes 1-2 min)
 - `fetch_news.py` → JSON array with `title, url, source, category, date, summary`; stderr shows `[OK]` / `[FAIL]` per source
 
@@ -59,21 +66,24 @@ After scripts finish, tally the counts:
 - X.com posts: N
 
 **If all three return 0 AND `fetch_news.py` stderr shows `[FAIL]`:**
-Stop. Report to user: "所有脚本抓取失败（可能是网络问题）。要重新抓取吗？" Wait for confirmation before continuing. Re-run the failing scripts on Y.
+Stop. Tell the user all scripts failed (likely a network issue) and ask whether to retry. Re-run on confirmation.
 
 **If X.com returns 0 AND YouTube returns 0 (both empty on a weekday):**
-Ask user: "X.com 和 YouTube 均无数据，是否继续生成文档？" — only proceed on Y.
+Ask the user to confirm before continuing.
 
 **If at least one section has data:** proceed immediately.
 
 ### Step 4 — Save Markdown File & Ask About HTML
 
-Save the full digest as a Markdown file, named after today's run date:
-`D:\Users\Alex\EA\output\daily-brief\daily-brief-YYYY-MM-DD.md`
+Save the full digest as a Markdown file to the `output/` directory:
+`<BASE>/output/daily-brief-YYYY-MM-DD.md`
 
 Then open it:
 ```bash
-start "D:\Users\Alex\EA\output\daily-brief\daily-brief-YYYY-MM-DD.md"
+# Windows
+start "<BASE>/output/daily-brief-YYYY-MM-DD.md"
+# macOS
+open "<BASE>/output/daily-brief-YYYY-MM-DD.md"
 ```
 
 In chat, output only a brief confirmation: filename saved, total item counts per section, and 1-line summary of the top insight.
@@ -101,31 +111,27 @@ When the user confirms HTML output, ask:
 
 **Do NOT generate HTML from scratch.** Always read the template for the chosen style, fill placeholders, expand REPEAT blocks, and save.
 
+Images are already pre-placed in `output/` — no copying needed.
+
 ---
 
 ### Rationalist
 
-**Template:** `D:\Users\Alex\EA\.claude\skills\ai-daily\assets\rationalist\template.html`
+**Template:** `<BASE>/assets/rationalist/template.html`
 
-**Images (fixed, copy alongside output HTML):**
-- `D:\Users\Alex\EA\.claude\skills\ai-daily\assets\rationalist\spotlight.jpg`
-- `D:\Users\Alex\EA\.claude\skills\ai-daily\assets\rationalist\youtubepicks.jpg`
-
-**Output file:** `D:\Users\Alex\EA\output\daily-brief\r-brief-YYYY-MM-DD.html`
+**Output file:** `<BASE>/output/r-brief-YYYY-MM-DD.html`
 
 **Steps:**
-1. Read `template.html`
+1. Read `assets/rationalist/template.html`
 2. Fill every `{{PLACEHOLDER}}` with today's content from the Markdown digest
 3. For Spotlight and YouTube Picks: expand `<!-- REPEAT ... /REPEAT -->` blocks — one `.si` card per article/video beyond the hero
-4. Save the filled HTML to the output path above
-5. Copy images into the same output folder:
+4. Save the filled HTML to `output/r-brief-YYYY-MM-DD.html`
+5. Open the file:
 ```bash
-copy "D:\Users\Alex\EA\.claude\skills\ai-daily\assets\rationalist\spotlight.jpg" "D:\Users\Alex\EA\output\daily-brief\spotlight.jpg"
-copy "D:\Users\Alex\EA\.claude\skills\ai-daily\assets\rationalist\youtubepicks.jpg" "D:\Users\Alex\EA\output\daily-brief\youtubepicks.jpg"
-```
-6. Open the file:
-```bash
-start "D:\Users\Alex\EA\output\daily-brief\r-brief-YYYY-MM-DD.html"
+# Windows
+start "<BASE>/output/r-brief-YYYY-MM-DD.html"
+# macOS
+open "<BASE>/output/r-brief-YYYY-MM-DD.html"
 ```
 
 **Layout notes:**
@@ -163,29 +169,23 @@ start "D:\Users\Alex\EA\output\daily-brief\r-brief-YYYY-MM-DD.html"
 
 ### Modernism
 
-**Template:** `D:\Users\Alex\EA\.claude\skills\ai-daily\assets\modernism\template.html`
+**Template:** `<BASE>/assets/modernism/template.html`
 
-**Images (fixed, copy alongside output HTML):**
-- `D:\Users\Alex\EA\.claude\skills\ai-daily\assets\modernism\spotlight.png`
-- `D:\Users\Alex\EA\.claude\skills\ai-daily\assets\modernism\youtubepicks.png`
-
-**Output file:** `D:\Users\Alex\EA\output\daily-brief\m-brief-YYYY-MM-DD.html`
+**Output file:** `<BASE>/output/m-brief-YYYY-MM-DD.html`
 
 **Steps:**
-1. Read `template.html`
+1. Read `assets/modernism/template.html`
 2. Fill every `{{PLACEHOLDER}}` with today's content from the Markdown digest
 3. For Spotlight stack: expand `<!-- REPEAT .stack-item /REPEAT -->` — one `.stack-item` per article beyond the hero (stack items have no summary, only tag + title + byline + CTA)
 4. For YouTube Picks: expand `<!-- REPEAT .card /REPEAT -->` — one `.card` per video (all videos are cards; there is no separate hero video)
 5. For X.com: expand `<!-- REPEAT .x-row /REPEAT -->` — one `.x-row` per post
-6. Save the filled HTML to the output path above
-7. Copy images into the same output folder:
+6. Save the filled HTML to `output/m-brief-YYYY-MM-DD.html`
+7. Open the file:
 ```bash
-copy "D:\Users\Alex\EA\.claude\skills\ai-daily\assets\modernism\spotlight.png" "D:\Users\Alex\EA\output\daily-brief\spotlight.png"
-copy "D:\Users\Alex\EA\.claude\skills\ai-daily\assets\modernism\youtubepicks.png" "D:\Users\Alex\EA\output\daily-brief\youtubepicks.png"
-```
-8. Open the file:
-```bash
-start "D:\Users\Alex\EA\output\daily-brief\m-brief-YYYY-MM-DD.html"
+# Windows
+start "<BASE>/output/m-brief-YYYY-MM-DD.html"
+# macOS
+open "<BASE>/output/m-brief-YYYY-MM-DD.html"
 ```
 
 **Layout notes:**
@@ -315,31 +315,4 @@ The file has two self-contained halves. Do NOT interleave Chinese and English li
 ---
 
 ## Security Note
-The X.com credentials in `x-creds.json` are personal. When sharing this skill on 小红书 or anywhere else, share only the SKILL.md and scripts — never share the `private/x-creds.json` file or mention actual cookie values.
-
----
-
-## GitHub Open-Source Checklist
-
-Before publishing this skill to GitHub, verify the following:
-
-### Privacy — must exclude
-- `private/x-creds.json` (X.com auth_token + ct0 cookies) — add to `.gitignore`
-- Any file containing real credentials, API keys, or personal account cookies
-- The `output/` directory (generated files, not source)
-
-### Images — must include in repo
-The four static images live in the `assets/` folders and must be committed so users get correct rendering immediately:
-- `assets/rationalist/spotlight.jpg`
-- `assets/rationalist/youtubepicks.jpg`
-- `assets/modernism/spotlight.png`
-- `assets/modernism/youtubepicks.png`
-
-These are also the images that get copied into `output/daily-brief/` each time an HTML brief is generated. Users cloning the repo should place their own copies here, or the repo ships with placeholder/example images.
-
-### Setup instructions for README
-Users will need to:
-1. Install twscrape: `pip install "twscrape[curl]"`
-2. Create `~/.claude/private/x-creds.json` with their own X.com cookies (`auth_token` + `ct0`)
-3. Create the output directory: `output/daily-brief/`
-4. Point output paths to their local directory (or leave defaults and adjust)
+Your X.com credentials are personal — never commit `x-creds.json` to any repo. The `.gitignore` in this repo already excludes it. Share only `SKILL.md` and the `scripts/` folder when distributing this skill.

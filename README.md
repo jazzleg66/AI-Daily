@@ -49,14 +49,13 @@ Inspired by [Monocle](https://monocle.com/) — minimal black and white, large E
 
 ## Setup
 
-**1. Clone and place the skill**
+**1. Clone the repo**
 
-Copy this repo's contents into your Claude Code skills directory:
-```
-~/.claude/skills/ai-daily/
+```bash
+git clone https://github.com/jazzleg66/AI-Daily.git
 ```
 
-Or use any path — just update the paths in `SKILL.md` to match.
+Place it anywhere — Claude Code will detect the skill's base directory automatically. The `output/` folder is pre-created with all required images inside.
 
 **2. Configure X.com credentials**
 
@@ -75,15 +74,7 @@ mkdir -p ~/.claude/private
 
 To get your cookies: log into x.com in a browser, open DevTools → Application → Cookies → copy `auth_token` and `ct0`.
 
-**3. Create the output directory**
-
-```bash
-mkdir -p ~/output/daily-brief
-```
-
-Update the output paths in `SKILL.md` to point to your preferred location.
-
-**4. Register the skill in Claude Code**
+**3. Register the skill in Claude Code**
 
 Add this to your `.claude/settings.json`:
 ```json
