@@ -49,19 +49,30 @@ Inspired by [Monocle](https://monocle.com/) — minimal black and white, large E
 
 ## Setup
 
-**1. Clone the repo**
+**1. Clone the repo into your Claude Code skills directory**
+
+Claude Code loads skills from `~/.claude/skills/`. Clone this repo directly into that folder so all scripts, assets, and templates are available to the skill:
 
 ```bash
-git clone https://github.com/jazzleg66/AI-Daily.git
+# macOS / Linux
+git clone https://github.com/jazzleg66/AI-Daily.git ~/.claude/skills/ai-daily
+
+# Windows
+git clone https://github.com/jazzleg66/AI-Daily.git "%USERPROFILE%\.claude\skills\ai-daily"
 ```
 
-Place it anywhere — Claude Code will detect the skill's base directory automatically. The `output/` folder is pre-created with all required images inside.
+The `output/` folder is pre-created inside the repo with all required hero images — no extra setup needed.
 
 **2. Configure X.com credentials**
 
 Create the credentials file:
+
 ```bash
+# macOS / Linux
 mkdir -p ~/.claude/private
+
+# Windows
+mkdir "%USERPROFILE%\.claude\private"
 ```
 
 ```json
@@ -73,18 +84,6 @@ mkdir -p ~/.claude/private
 ```
 
 To get your cookies: log into x.com in a browser, open DevTools → Application → Cookies → copy `auth_token` and `ct0`.
-
-**3. Register the skill in Claude Code**
-
-Copy or symlink `SKILL.md` into your Claude Code skills directory:
-
-```bash
-# macOS / Linux
-cp path/to/AI-Daily/SKILL.md ~/.claude/skills/ai-daily.md
-
-# Windows
-copy "C:\path\to\AI-Daily\SKILL.md" "%USERPROFILE%\.claude\skills\ai-daily.md"
-```
 
 ---
 
