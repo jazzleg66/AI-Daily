@@ -9,6 +9,25 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 
+# On Windows, curl-cffi ignores system proxy settings (Clash, V2Ray, etc.) stored
+# in the registry. Read the registry and populate env vars before twscrape imports.
+if sys.platform == 'win32' and not os.environ.get('HTTPS_PROXY'):
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                             r'Software\Microsoft\Windows\CurrentVersion\Internet Settings')
+        enabled, _ = winreg.QueryValueEx(key, 'ProxyEnable')
+        if enabled:
+            proxy, _ = winreg.QueryValueEx(key, 'ProxyServer')
+            if proxy and '://' not in proxy:
+                proxy = 'http://' + proxy
+            os.environ['HTTP_PROXY'] = proxy
+            os.environ['HTTPS_PROXY'] = proxy
+            os.environ['ALL_PROXY'] = proxy
+        winreg.CloseKey(key)
+    except Exception:
+        pass
+
 os.environ['TWS_HTTP_BACKEND'] = 'curl'
 
 from twscrape import API, gather
