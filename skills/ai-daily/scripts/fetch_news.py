@@ -64,13 +64,20 @@ def parse_date(date_str):
         return None
     s = date_str.strip()
     try:
-        return datetime.fromisoformat(s.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+        return dt if dt.tzinfo else dt.replace(tzinfo=BEIJING_TZ)
     except ValueError:
         pass
     try:
-        return parsedate_to_datetime(s)
+        dt = parsedate_to_datetime(s)
+        return dt if dt.tzinfo else dt.replace(tzinfo=BEIJING_TZ)
     except Exception:
         pass
+    for fmt in ('%b %d, %Y', '%B %d, %Y', '%b %d %Y', '%B %d %Y'):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=BEIJING_TZ)
+        except ValueError:
+            pass
     return None
 
 def in_window(dt, today, yesterday):
@@ -87,6 +94,33 @@ def get_meta(body, prop):
     p2 = re.search(rf'<meta[^>]+content="([^"]*)"[^>]+property="{prop}"', body)
     m = p1 or p2
     return html.unescape(m.group(1)).strip() if m else ''
+
+def parse_anthropic_page_date(body):
+    """Extract the article's real publish date from an Anthropic article page."""
+    for pattern in (
+        r'"datePublished"\s*:\s*"([^"]+)"',
+        r'"publishedAt"\s*:\s*"([^"]+)"',
+        r'"publishDate"\s*:\s*"([^"]+)"',
+        r'<meta[^>]+property="article:published_time"[^>]+content="([^"]*)"',
+        r'<meta[^>]+content="([^"]*)"[^>]+property="article:published_time"',
+    ):
+        match = re.search(pattern, body)
+        if match:
+            dt = parse_date(html.unescape(match.group(1)))
+            if dt:
+                return dt
+
+    title_match = re.search(r'<h1\b[^>]*>.*?</h1>', body, flags=re.S)
+    if title_match:
+        tail = body[title_match.end():title_match.end() + 1200]
+        date_match = re.search(
+            r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}\b',
+            strip_html(tail),
+        )
+        if date_match:
+            return parse_date(date_match.group(0))
+
+    return None
 
 
 # ── RSS / Atom parser ─────────────────────────────────────────────────────────
@@ -143,7 +177,7 @@ def parse_rss_or_atom(xml_bytes, source_name, category, today, yesterday):
 # ── Source fetchers ───────────────────────────────────────────────────────────
 
 def fetch_anthropic(today, yesterday):
-    """Sitemap → date filter → fetch each article's og meta."""
+    """Sitemap discovery -> fetch each article -> filter by page publish date."""
     articles = []
     try:
         xml_bytes = fetch('https://www.anthropic.com/sitemap.xml')
@@ -155,18 +189,23 @@ def fetch_anthropic(today, yesterday):
             mod = url_el.findtext('sm:lastmod', namespaces=ns) or ''
             if '/news/' not in loc:
                 continue
-            dt = parse_date(mod)
-            if in_window(dt, today, yesterday):
-                candidates.append((loc, dt))
+            if in_window(parse_date(mod), today, yesterday):
+                candidates.append(loc)
     except Exception as e:
         print(f'[FAIL] Anthropic sitemap: {e}', file=sys.stderr)
         return []
 
-    for url, dt in candidates:
+    for url in candidates:
         try:
             body = fetch(url).decode('utf-8', errors='ignore')
-            title   = get_meta(body, 'og:title') or re.search(r'<title>([^<|]+)', body).group(1).strip()
+            dt = parse_anthropic_page_date(body)
+            if not in_window(dt, today, yesterday):
+                continue
+            title_match = re.search(r'<title>([^<|]+)', body)
+            title   = get_meta(body, 'og:title') or (title_match.group(1).strip() if title_match else '')
             summary = get_meta(body, 'og:description')
+            if not title:
+                continue
             articles.append({
                 "title": title, "url": url, "source": "Anthropic",
                 "category": "Official Update", "date": format_date(dt),
@@ -177,7 +216,6 @@ def fetch_anthropic(today, yesterday):
 
     print(f'[OK] Anthropic ({len(articles)} articles)', file=sys.stderr)
     return articles
-
 
 def fetch_claude_blog(today, yesterday):
     """Blog listing page → top slugs → fetch each article's JSON-LD date + og meta."""
