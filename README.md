@@ -41,7 +41,7 @@ Inspired by [Monocle](https://monocle.com/) — minimal black and white, large E
 - Python 3.9+
 - [twscrape](https://github.com/vladkens/twscrape) for X.com scraping:
   ```bash
-  pip install "twscrape[curl]"
+  pip install --upgrade "twscrape @ git+https://github.com/vladkens/twscrape.git"
   ```
 - An X.com account with valid session cookies (`auth_token` + `ct0`)
 
@@ -90,7 +90,7 @@ Clone the repo and point your agent at `skills/ai-daily/SKILL.md` as context. Se
 Install the X.com scraping library:
 
 ```bash
-pip install "twscrape[curl]"
+pip install --upgrade "twscrape @ git+https://github.com/vladkens/twscrape.git"
 ```
 
 Then create the credentials file:

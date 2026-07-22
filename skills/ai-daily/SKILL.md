@@ -18,7 +18,7 @@ All paths use `<BASE>` — the skill's base directory, which Claude Code provide
 
 ## Setup Requirements
 - **X.com credentials:** `~/.claude/private/x-creds.json` (see README for details)
-- **twscrape:** `pip install "twscrape[curl]"`
+- **twscrape:** `pip install --upgrade "twscrape @ git+https://github.com/vladkens/twscrape.git"`
 
 ## Trigger Phrases
 - "daily brief" / "ai news" / "today's ai news"
