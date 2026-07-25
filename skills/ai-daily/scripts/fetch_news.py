@@ -80,6 +80,14 @@ def parse_date(date_str):
             pass
     return None
 
+def has_window_human_date(body, today, yesterday):
+    """Whether page text visibly contains a date in the current digest window."""
+    dates = re.findall(
+        r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}\b',
+        body,
+    )
+    return any(in_window(parse_date(value), today, yesterday) for value in dates)
+
 def in_window(dt, today, yesterday):
     if dt is None:
         return False
@@ -101,6 +109,7 @@ def parse_anthropic_page_date(body):
         r'"datePublished"\s*:\s*"([^"]+)"',
         r'"publishedAt"\s*:\s*"([^"]+)"',
         r'"publishDate"\s*:\s*"([^"]+)"',
+        r'"publishedOn"\s*:\s*"([^"]+)"',
         r'<meta[^>]+property="article:published_time"[^>]+content="([^"]*)"',
         r'<meta[^>]+content="([^"]*)"[^>]+property="article:published_time"',
     ):
@@ -177,22 +186,40 @@ def parse_rss_or_atom(xml_bytes, source_name, category, today, yesterday):
 # ── Source fetchers ───────────────────────────────────────────────────────────
 
 def fetch_anthropic(today, yesterday):
-    """Sitemap discovery -> fetch each article -> filter by page publish date."""
+    """Discover from News and sitemap, then verify each page's publish date."""
     articles = []
+    candidates = []
+    listing_has_recent_date = False
+
+    # The visible listing is the primary discovery source. It is updated for
+    # readers independently of sitemap metadata.
+    try:
+        listing = fetch('https://www.anthropic.com/news').decode('utf-8', errors='ignore')
+        listing_has_recent_date = has_window_human_date(listing, today, yesterday)
+        candidates.extend(
+            f'https://www.anthropic.com{path}'
+            for path in re.findall(r'href="(/news/[a-z0-9][a-z0-9\-]+)"', listing)
+        )
+    except Exception as e:
+        print(f'[WARN] Anthropic News listing: {e}', file=sys.stderr)
+
+    # Sitemap is a supplemental discovery source only. Its lastmod must never
+    # be presented or used as an article publish date.
     try:
         xml_bytes = fetch('https://www.anthropic.com/sitemap.xml')
         root = ET.fromstring(xml_bytes)
         ns = {'sm': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
-        candidates = []
         for url_el in root.findall('.//sm:url', ns):
             loc = url_el.findtext('sm:loc', namespaces=ns) or ''
             mod = url_el.findtext('sm:lastmod', namespaces=ns) or ''
-            if '/news/' not in loc:
-                continue
-            if in_window(parse_date(mod), today, yesterday):
+            if '/news/' in loc and in_window(parse_date(mod), today, yesterday):
                 candidates.append(loc)
     except Exception as e:
-        print(f'[FAIL] Anthropic sitemap: {e}', file=sys.stderr)
+        print(f'[WARN] Anthropic sitemap: {e}', file=sys.stderr)
+
+    candidates = list(dict.fromkeys(candidates))
+    if not candidates:
+        print('[FAIL] Anthropic: no listing or sitemap candidates', file=sys.stderr)
         return []
 
     for url in candidates:
@@ -214,7 +241,10 @@ def fetch_anthropic(today, yesterday):
         except Exception:
             continue
 
-    print(f'[OK] Anthropic ({len(articles)} articles)', file=sys.stderr)
+    if listing_has_recent_date and not articles:
+        print('[FAIL] Anthropic: listing has a current-window date but no article was parsed', file=sys.stderr)
+    else:
+        print(f'[OK] Anthropic ({len(articles)} articles)', file=sys.stderr)
     return articles
 
 def fetch_claude_blog(today, yesterday):
@@ -222,35 +252,49 @@ def fetch_claude_blog(today, yesterday):
     articles = []
     try:
         body = fetch('https://claude.com/blog').decode('utf-8', errors='ignore')
-        # Deduplicated /blog/slug links from listing page
-        all_slugs = re.findall(r'href="(/blog/[a-z0-9][a-z0-9\-]+)"', body)
-        slugs = list(dict.fromkeys(all_slugs))[:12]  # top 12, deduplicated
+        starts = list(re.finditer(
+            r'<div role="listitem" class="blog_cms_item w-dyn-item">',
+            body,
+        ))
     except Exception as e:
         print(f'[FAIL] Claude Blog listing: {e}', file=sys.stderr)
         return []
 
-    for slug in slugs:
-        url = f'https://claude.com{slug}'
+    cards = []
+    for index, start in enumerate(starts):
+        end = starts[index + 1].start() if index + 1 < len(starts) else len(body)
+        card = body[start.start():end]
+        date_match = re.search(r'fs-list-fieldtype="date"[^>]*>([^<]+)<', card)
+        title_match = re.search(r'card_blog_title[^>]*>(.*?)</div>', card, flags=re.S)
+        url_match = re.search(r'href="(/blog/[a-z0-9][a-z0-9\-]+)"', card)
+        dt = parse_date(strip_html(date_match.group(1)) if date_match else '')
+        if title_match and url_match and in_window(dt, today, yesterday):
+            cards.append((
+                f'https://claude.com{url_match.group(1)}',
+                strip_html(title_match.group(1)),
+                dt,
+            ))
+
+    if not starts:
+        print('[FAIL] Claude Blog: no dated blog cards found', file=sys.stderr)
+        return []
+    if has_window_human_date(body, today, yesterday) and not cards:
+        print('[FAIL] Claude Blog: listing has a current-window date but no card was parsed', file=sys.stderr)
+        return []
+
+    for url, listing_title, dt in cards:
         try:
             page = fetch(url).decode('utf-8', errors='ignore')
-            # Date from JSON-LD BlogPosting.datePublished
+            # Listing date is authoritative for discovery; only replace it
+            # when the article has a machine-readable publish date.
             ld_match = re.search(r'"datePublished"\s*:\s*"([^"]+)"', page)
-            if not ld_match:
-                # Fallback: visible date pattern like "Jun 18 2026"
-                dm = re.search(r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{1,2},?\s+\d{4}', page)
-                if not dm:
-                    continue
-                dt = parse_date(dm.group(0))
-            else:
-                dt = parse_date(ld_match.group(1))
+            if ld_match:
+                page_dt = parse_date(ld_match.group(1))
+                if page_dt:
+                    dt = page_dt
 
-            if not in_window(dt, today, yesterday):
-                continue
-
-            title   = get_meta(page, 'og:title').replace(' | Claude', '').strip()
+            title   = get_meta(page, 'og:title').replace(' | Claude', '').replace(' by Anthropic', '').strip() or listing_title
             summary = get_meta(page, 'og:description')
-            if not title:
-                continue
             articles.append({
                 "title": title, "url": url, "source": "Claude Blog",
                 "category": "Official Update", "date": format_date(dt),
