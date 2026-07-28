@@ -100,9 +100,15 @@ Save the full digest as a Markdown file:
 - Windows: `%USERPROFILE%\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md`
 
 Then open it:
-```bash
+```powershell
 # Windows
-start "%USERPROFILE%\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md"
+$brief = "$env:USERPROFILE\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md"
+if (-not (Test-Path -LiteralPath $brief) -or (Get-Item -LiteralPath $brief).Length -eq 0) {
+  throw "AI Daily Markdown was not written or is empty: $brief"
+}
+# A fresh VS Code window prevents an old dirty/empty editor buffer for the
+# same path from hiding the newly written file.
+Start-Process code -ArgumentList '--new-window', $brief
 # macOS
 open ~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md
 ```
