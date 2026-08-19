@@ -13,7 +13,7 @@ Every day, run one command in Claude Code:
 > "today's daily brief" / "今天的 AI 日报"
 
 Claude will:
-1. Fetch today's AI news from Anthropic, OpenAI, Claude Blog, The AI Valley, smol.ai, Every.to newsletters
+1. Fetch today's AI news from Anthropic, OpenAI, Claude Blog, The AI Valley, smol.ai, and Every.to
 2. Pull the latest videos from 10 AI YouTube channels
 3. Scrape top posts from 18 AI accounts on X.com (filtered for AI relevance)
 4. Save a bilingual Markdown digest

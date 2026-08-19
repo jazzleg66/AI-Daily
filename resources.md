@@ -6,7 +6,7 @@
 - https://openai.com/ (RSS)
 - https://www.theaivalley.com/ (RSS)
 - https://news.smol.ai/ (RSS)
-- https://every.to/ (newsletter RSS feeds: chain-of-thought, napkin-math, superorganizers, divinations, context-window)
+- https://every.to/ (posts sitemap + article metadata; legacy newsletter RSS fallback)
 
 ## YouTube Channels (fetch_youtube.py)
 Configured inside the script — edit `CHANNELS` to add or remove channels.

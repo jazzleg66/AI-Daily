@@ -6,7 +6,7 @@ Strategy per source:
   Claude Blog — blog listing page (slugs) + article page JSON-LD date + og meta
   OpenAI      — RSS feed
   The AI Valley — RSS feed
-  Every.to    — 6 newsletter RSS feeds
+  Every.to    — posts sitemap + article metadata (legacy RSS fallback)
   smol.ai     — RSS feed
 
 Returns JSON array to stdout. Each item:
@@ -25,6 +25,7 @@ import time
 import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
@@ -129,6 +130,20 @@ def parse_anthropic_page_date(body):
         if date_match:
             return parse_date(date_match.group(0))
 
+    return None
+
+def parse_every_page_date(body):
+    """Extract Every.to's real publication date from article metadata."""
+    for pattern in (
+        r'<meta[^>]+property="article:published_time"[^>]+content="([^"]*)"',
+        r'<meta[^>]+content="([^"]*)"[^>]+property="article:published_time"',
+        r'"datePublished"\s*:\s*"([^"]+)"',
+    ):
+        match = re.search(pattern, body)
+        if match:
+            dt = parse_date(html.unescape(match.group(1)))
+            if dt:
+                return dt
     return None
 
 
@@ -307,6 +322,92 @@ def fetch_claude_blog(today, yesterday):
     return articles
 
 
+def fetch_every_article(url, today, yesterday):
+    """Fetch one Every.to sitemap candidate and verify its publish date."""
+    try:
+        body = fetch(url).decode('utf-8', errors='ignore')
+        dt = parse_every_page_date(body)
+        if not in_window(dt, today, yesterday):
+            return None
+
+        title = get_meta(body, 'og:title')
+        if not title:
+            title_match = re.search(r'<title>([^<|]+)', body)
+            title = title_match.group(1).strip() if title_match else ''
+        summary = get_meta(body, 'og:description')
+        if not title:
+            return None
+        return {
+            "title": title, "url": url, "source": "Every.to",
+            "category": "Independent News", "date": format_date(dt),
+            "summary": truncate(summary),
+        }
+    except Exception:
+        return None
+
+
+def fetch_every(today, yesterday):
+    """Discover current Every.to posts from the new sitemap-backed site.
+
+    Every.to's old newsletter RSS endpoints remain reachable but are stale,
+    so HTTP 200 is not enough to treat them as a current-news source.
+    """
+    sitemap_urls = []
+    try:
+        index = ET.fromstring(fetch('https://every.to/sitemap.xml'))
+        ns = index.tag.split('}')[0] + '}' if index.tag.startswith('{') else ''
+        sitemap_urls = [
+            loc.text.strip()
+            for sitemap in index.findall(f'{ns}sitemap')
+            for loc in [sitemap.find(f'{ns}loc')]
+            if loc is not None and loc.text and '/sitemaps/posts-' in loc.text
+        ]
+    except Exception as e:
+        print(f'[FAIL] Every.to sitemap index: {e}', file=sys.stderr)
+        return None
+
+    candidates = []
+    successful_sitemaps = 0
+    for sitemap_url in sitemap_urls:
+        try:
+            root = ET.fromstring(fetch(sitemap_url))
+            successful_sitemaps += 1
+            ns = root.tag.split('}')[0] + '}' if root.tag.startswith('{') else ''
+            for url_el in root.findall(f'{ns}url'):
+                loc_el = url_el.find(f'{ns}loc')
+                mod_el = url_el.find(f'{ns}lastmod')
+                loc = loc_el.text.strip() if loc_el is not None and loc_el.text else ''
+                lastmod = mod_el.text.strip() if mod_el is not None and mod_el.text else ''
+                if loc and in_window(parse_date(lastmod), today, yesterday):
+                    candidates.append(loc)
+        except Exception as e:
+            print(f'[WARN] Every.to sitemap: {sitemap_url} — {e}', file=sys.stderr)
+
+    if not successful_sitemaps:
+        print('[FAIL] Every.to sitemap: no post sitemap succeeded', file=sys.stderr)
+        return None
+
+    candidates = list(dict.fromkeys(candidates))
+    if not candidates:
+        print('[OK] Every.to (0 articles; no current-window sitemap candidates)', file=sys.stderr)
+        return []
+
+    articles = []
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = [executor.submit(fetch_every_article, url, today, yesterday) for url in candidates]
+        for future in as_completed(futures):
+            article = future.result()
+            if article:
+                articles.append(article)
+
+    print(
+        f'[OK] Every.to ({len(articles)} articles; '
+        f'{len(candidates)} sitemap candidates)',
+        file=sys.stderr,
+    )
+    return articles
+
+
 def fetch_rss_source(name, category, rss_urls, today, yesterday):
     """Try RSS URLs in order; return articles from first success."""
     for url in rss_urls:
@@ -388,11 +489,25 @@ def main():
     results.extend(fetch_anthropic(today, yesterday))
     results.extend(fetch_claude_blog(today, yesterday))
 
+    # Every.to migrated away from its newsletter feeds; use the sitemap-backed
+    # discovery path first and retain the old feeds only as a transport fallback.
+    every_articles = fetch_every(today, yesterday)
+    if every_articles is None:
+        for src in RSS_SOURCES:
+            if src['name'] == 'Every.to':
+                results.extend(fetch_rss_source(
+                    src['name'], src['category'], src['rss_urls'], today, yesterday
+                ))
+
     # RSS sources
     for src in RSS_SOURCES:
+        if src['name'] == 'Every.to':
+            continue
         results.extend(fetch_rss_source(
             src['name'], src['category'], src['rss_urls'], today, yesterday
         ))
+    if every_articles is not None:
+        results.extend(every_articles)
 
     # Deduplicate by URL
     seen = set()
