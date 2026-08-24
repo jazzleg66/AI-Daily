@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Fetch today's X.com posts from AI accounts via twscrape.
-Credentials are read from C:\\Users\\Alex\\.claude\\private\\x-creds.json
-or from X_AUTH_TOKEN / X_CT0 environment variables.
+Credentials are read from ~/.claude/private/x-creds.json
+(%USERPROFILE%\\.claude\\private\\x-creds.json on Windows)
+or from the X_AUTH_TOKEN / X_CT0 environment variables.
 """
 import asyncio
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone, timedelta
 
@@ -28,6 +30,24 @@ if sys.platform == 'win32' and not os.environ.get('HTTPS_PROXY'):
     except Exception:
         pass
 
+# The curl backend needs curl-cffi, which only ships with twscrape[curl] — a plain
+# `pip install twscrape` does not pull it in. Without it twscrape raises ImportError
+# on the first account, marks that account locked, and every later call then waits
+# forever for an account that can never unlock: no output, no error, no exit.
+#
+# Bail out here instead. Falling back to the default httpx backend is not a fix —
+# X.com does not answer its requests and they hang with no timeout, which turns a
+# missing dependency into the same silent deadlock.
+try:
+    import curl_cffi  # noqa: F401
+except ImportError:
+    print('[FATAL] curl-cffi is required but not installed. Without it this script '
+          'hangs forever instead of failing. Install with:\n'
+          '  pip install --upgrade "twscrape[curl] @ '
+          'git+https://github.com/vladkens/twscrape.git"', file=sys.stderr)
+    print('[]')
+    sys.exit(1)
+
 os.environ['TWS_HTTP_BACKEND'] = 'curl'
 
 from twscrape import API, gather
@@ -45,21 +65,33 @@ X_ACCOUNTS = [
 ]
 
 # Post must contain at least one of these keywords (case-insensitive) to be included.
-AI_KEYWORDS = [
-    'ai', 'ml', 'llm', 'gpt', 'claude', 'gemini', 'openai', 'anthropic',
+#
+# Short acronyms are matched as whole words only. Plain substring matching let 'ai'
+# hit 'air' and 'Aisha', which pulled unrelated news and political posts into the
+# results. A trailing 's' is allowed so 'llms' and 'apis' still match.
+AI_ACRONYMS = ['ai', 'ml', 'llm', 'gpt', 'rag', 'api', 'saas']
+
+# Matched from a word boundary but allowed to run on, so 'model' catches 'models',
+# 'deploy' catches 'deployment', and 'fine-tun' catches 'fine-tuning'.
+AI_STEMS = [
+    'claude', 'gemini', 'openai', 'anthropic',
     'model', 'agent', 'prompt', 'token', 'inference', 'training', 'neural',
-    'embedding', 'vector', 'rag', 'fine-tun', 'transformer', 'diffusion',
+    'embedding', 'vector', 'fine-tun', 'transformer', 'diffusion',
     'multimodal', 'frontier', 'open weight', 'open-weight',
     'chatgpt', 'copilot', 'cursor', 'replit', 'automation',
     'machine learning', 'deep learning', 'foundation model', 'language model',
-    'benchmark', 'evals', 'alignment', 'vibe cod', 'coding assistant',
-    'startup', 'founder', 'saas', 'product', 'software', 'developer', 'api',
+    'benchmark', 'eval', 'alignment', 'vibe cod', 'coding assistant',
+    'startup', 'founder', 'product', 'software', 'developer',
     'open source', 'dataset', 'research', 'paper', 'deploy',
 ]
 
+_ACRONYM_RE = re.compile(
+    r'\b(?:' + '|'.join(re.escape(k) for k in AI_ACRONYMS) + r')s?\b', re.IGNORECASE)
+_STEM_RE = re.compile(
+    r'\b(?:' + '|'.join(re.escape(k) for k in AI_STEMS) + r')', re.IGNORECASE)
+
 def is_ai_relevant(text: str) -> bool:
-    lower = text.lower()
-    return any(kw in lower for kw in AI_KEYWORDS)
+    return bool(_ACRONYM_RE.search(text) or _STEM_RE.search(text))
 
 def load_creds():
     auth_token = os.environ.get('X_AUTH_TOKEN')
@@ -107,9 +139,13 @@ async def main():
                         "likes": tweet.likeCount,
                         "retweets": tweet.retweetCount
                     })
-        except Exception:
+        except Exception as e:
+            # Report and move on. Swallowing these silently made a missing
+            # dependency look like a hang with no diagnostic output at all.
+            print(f'[FAIL] {username}: {type(e).__name__}: {e}', file=sys.stderr)
             continue
 
+    print(f'[OK] {len(results)} posts from {len(X_ACCOUNTS)} accounts', file=sys.stderr)
     results.sort(key=lambda x: x.get('likes', 0) + x.get('retweets', 0) * 3, reverse=True)
     sys.stdout.buffer.write(json.dumps(results, ensure_ascii=False).encode('utf-8'))
     sys.stdout.buffer.write(b'\n')
