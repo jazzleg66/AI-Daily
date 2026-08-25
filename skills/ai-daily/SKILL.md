@@ -18,7 +18,7 @@ All paths use `<BASE>` — the skill's base directory, which Claude Code provide
 
 ## Setup Requirements
 - **X.com credentials:** `~/.claude/private/x-creds.json` (see README for details)
-- **twscrape:** `pip install --upgrade "twscrape @ git+https://github.com/vladkens/twscrape.git"`
+- **twscrape:** `pip install --upgrade "twscrape[curl]>=0.20.0"`
 
 ## Trigger Phrases
 - "daily brief" / "ai news" / "today's ai news"
@@ -69,6 +69,8 @@ python "<BASE>/scripts/fetch_news.py"
 ```
 
 Each script auto-retries failed requests up to 3 times (2s / 4s backoff) before giving up.
+The scripts also write machine-readable status markers to stderr. An empty JSON
+array is not, by itself, proof that a source was reachable.
 
 **Script outputs:**
 - `fetch_youtube.py` → JSON array of videos from subscribed AI channels
@@ -77,20 +79,54 @@ Each script auto-retries failed requests up to 3 times (2s / 4s backoff) before 
 
 **Date window (all scripts):** yesterday full day + today up to run time, Beijing time (UTC+8). 0 results is normal on weekends and slow news days.
 
-### Step 3 — Verify Data Before Proceeding
+### Step 3 — Verify Data and Self-Repair Before Proceeding
 
-After scripts finish, tally the counts:
+Do not proceed from counts alone. For each finished process, verify all of the
+following before writing the digest:
+
+1. The process exit code is 0.
+2. stdout parses as a JSON array (a JSON object containing `error` is a
+   failure, not an empty result).
+3. Every returned item has the required fields and a non-empty HTTP(S) URL.
+4. stderr contains an explicit reachability result:
+   - `fetch_news.py`: every configured source is `[OK]`, or is explicitly
+     `[WARN]` with a working fallback; `[XML ERROR]` without a later fallback
+     `[OK]` is a failure.
+   - `fetch_youtube.py`: each channel is reported; 0 videos is valid only when
+     the channel feed is `[OK]`.
+   - `fetch_x.py`: there must be an `[OK] X.com` line showing at least one
+     account succeeded. 0 posts can be a valid slow-news result only with that
+     line. `[FAIL]`, credential errors, transaction-id/parser errors, or all
+     account lookups failing are real failures.
+
+Record the verified counts:
 - News articles: N
 - YouTube videos: N
 - X.com posts: N
 
-**If all three return 0 AND `fetch_news.py` stderr shows `[FAIL]`:**
-Stop. Tell the user all scripts failed (likely a network issue) and ask whether to retry. Re-run on confirmation.
+#### Automatic recovery loop
 
-**If X.com returns 0 AND YouTube returns 0 (both empty on a weekday):**
-Ask the user to confirm before continuing.
+If any process, source, channel, or account fails validation, preserve its
+stderr and repair before composing Markdown. Perform at most two recovery
+passes, then verify again after each pass:
 
-**If at least one section has data:** proceed immediately.
+1. Classify the failure from the status line and error text. Do not turn a
+   failed request into a fabricated 0-result section.
+2. Re-run the affected endpoint/script after its built-in retry delay. For
+   X.com, confirm credentials are present, use the configured Windows/system
+   proxy explicitly, use the X bundle compatibility path in
+   `fetch_x.py`, and allow its verified public-profile HTML fallback when the
+   authenticated UserTweets queue is rate-limited; for migrated feeds, try the source's alternate RSS/page
+   fallback; for YouTube, retry only the failed channel feeds first.
+3. Re-parse stdout and stderr and repeat the validation checklist. If the
+   retry succeeds, use only the verified result. If it remains partial, keep
+   the successful data and add a bilingual `抓取备注 / Fetch note` naming the
+   unavailable source(s).
+
+If all three scripts fail, or if `fetch_news.py` has no reachable source after
+the recovery passes, stop and tell the user which status/error caused the
+block. If at least one section has verified data and the remaining failures
+are explicitly recorded, continue without silently presenting them as empty.
 
 ### Step 4 — Save Markdown File & Ask About HTML
 
@@ -105,6 +141,11 @@ Then open it:
 $brief = "$env:USERPROFILE\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md"
 if (-not (Test-Path -LiteralPath $brief) -or (Get-Item -LiteralPath $brief).Length -eq 0) {
   throw "AI Daily Markdown was not written or is empty: $brief"
+}
+$body = Get-Content -LiteralPath $brief -Raw -Encoding utf8
+if ($body -notmatch '^# AI Daily Brief — \d{4}-\d{2}-\d{2}' -or
+    $body -notmatch '# 中文版' -or $body -notmatch '# English Version') {
+  throw "AI Daily Markdown failed structural verification: $brief"
 }
 # A fresh VS Code window prevents an old dirty/empty editor buffer for the
 # same path from hiding the newly written file.

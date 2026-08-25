@@ -154,7 +154,7 @@ def parse_rss_or_atom(xml_bytes, source_name, category, today, yesterday):
         root = ET.fromstring(xml_bytes)
     except ET.ParseError as e:
         print(f'[XML ERROR] {source_name}: {e}', file=sys.stderr)
-        return []
+        raise ValueError(f'{source_name} returned malformed XML: {e}') from e
 
     tag = root.tag.lower()
     articles = []
@@ -237,6 +237,7 @@ def fetch_anthropic(today, yesterday):
         print('[FAIL] Anthropic: no listing or sitemap candidates', file=sys.stderr)
         return []
 
+    page_failures = 0
     for url in candidates:
         try:
             body = fetch(url).decode('utf-8', errors='ignore')
@@ -254,11 +255,22 @@ def fetch_anthropic(today, yesterday):
                 "summary": truncate(summary),
             })
         except Exception:
+            page_failures += 1
             continue
 
-    if listing_has_recent_date and not articles:
+    if page_failures == len(candidates) and candidates:
+        print(
+            f'[FAIL] Anthropic: all {len(candidates)} article pages failed',
+            file=sys.stderr,
+        )
+    elif listing_has_recent_date and not articles:
         print('[FAIL] Anthropic: listing has a current-window date but no article was parsed', file=sys.stderr)
     else:
+        if page_failures:
+            print(
+                f'[WARN] Anthropic: {page_failures}/{len(candidates)} article pages failed',
+                file=sys.stderr,
+            )
         print(f'[OK] Anthropic ({len(articles)} articles)', file=sys.stderr)
     return articles
 
@@ -297,6 +309,7 @@ def fetch_claude_blog(today, yesterday):
         print('[FAIL] Claude Blog: listing has a current-window date but no card was parsed', file=sys.stderr)
         return []
 
+    page_failures = 0
     for url, listing_title, dt in cards:
         try:
             page = fetch(url).decode('utf-8', errors='ignore')
@@ -316,8 +329,19 @@ def fetch_claude_blog(today, yesterday):
                 "summary": truncate(summary),
             })
         except Exception:
-            continue
+            page_failures += 1
+            articles.append({
+                "title": listing_title, "url": url, "source": "Claude Blog",
+                "category": "Official Update", "date": format_date(dt),
+                "summary": "",
+            })
 
+    if page_failures:
+        print(
+            f'[WARN] Claude Blog: {page_failures}/{len(cards)} article pages failed; '
+            'listing metadata was retained',
+            file=sys.stderr,
+        )
     print(f'[OK] Claude Blog ({len(articles)} articles)', file=sys.stderr)
     return articles
 
@@ -327,8 +351,10 @@ def fetch_every_article(url, today, yesterday):
     try:
         body = fetch(url).decode('utf-8', errors='ignore')
         dt = parse_every_page_date(body)
+        if dt is None:
+            return None, 'date-metadata'
         if not in_window(dt, today, yesterday):
-            return None
+            return None, 'out-of-window'
 
         title = get_meta(body, 'og:title')
         if not title:
@@ -336,14 +362,14 @@ def fetch_every_article(url, today, yesterday):
             title = title_match.group(1).strip() if title_match else ''
         summary = get_meta(body, 'og:description')
         if not title:
-            return None
+            return None, 'title-metadata'
         return {
             "title": title, "url": url, "source": "Every.to",
             "category": "Independent News", "date": format_date(dt),
             "summary": truncate(summary),
-        }
+        }, 'ok'
     except Exception:
-        return None
+        return None, 'fetch-error'
 
 
 def fetch_every(today, yesterday):
@@ -393,19 +419,98 @@ def fetch_every(today, yesterday):
         return []
 
     articles = []
+    status_counts = {}
     with ThreadPoolExecutor(max_workers=6) as executor:
         futures = [executor.submit(fetch_every_article, url, today, yesterday) for url in candidates]
         for future in as_completed(futures):
-            article = future.result()
+            article, status = future.result()
+            status_counts[status] = status_counts.get(status, 0) + 1
             if article:
                 articles.append(article)
 
-    print(
-        f'[OK] Every.to ({len(articles)} articles; '
-        f'{len(candidates)} sitemap candidates)',
-        file=sys.stderr,
+    failed_pages = status_counts.get('fetch-error', 0)
+    metadata_failures = sum(
+        count for status, count in status_counts.items()
+        if status in {'date-metadata', 'title-metadata'}
     )
+    if failed_pages + metadata_failures == len(candidates):
+        print(
+            f'[FAIL] Every.to: all {len(candidates)} sitemap candidates failed verification',
+            file=sys.stderr,
+        )
+    elif failed_pages or metadata_failures:
+        print(
+            f'[WARN] Every.to: {failed_pages + metadata_failures}/{len(candidates)} '
+            'candidates failed verification',
+            file=sys.stderr,
+        )
+        print(
+            f'[OK] Every.to ({len(articles)} articles; '
+            f'{len(candidates)} sitemap candidates)',
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f'[OK] Every.to ({len(articles)} articles; '
+            f'{len(candidates)} sitemap candidates)',
+            file=sys.stderr,
+        )
     return articles
+
+
+def fetch_the_ai_valley(today, yesterday):
+    """Fetch The AI Valley via RSS, then fall back to its Beehiiv listing."""
+    rss_urls = [
+        'https://www.theaivalley.com/feed/',
+        'https://www.theaivalley.com/feed',
+        'https://www.theaivalley.com/rss.xml',
+    ]
+    for url in rss_urls:
+        try:
+            xml_bytes = fetch(url)
+            articles = parse_rss_or_atom(
+                xml_bytes, 'The AI Valley', 'Independent News', today, yesterday
+            )
+            print(f'[OK] The AI Valley ({len(articles)} articles) — {url}', file=sys.stderr)
+            return articles
+        except Exception as error:
+            print(f'[WARN] The AI Valley RSS {url}: {error}', file=sys.stderr)
+
+    # The publication migrated these URLs to a Beehiiv-rendered HTML page. The
+    # page still exposes article cards with a machine-readable <time> value.
+    try:
+        body = fetch('https://www.theaivalley.com/').decode('utf-8', errors='ignore')
+        articles = []
+        seen = set()
+        for match in re.finditer(r'href="(/p/[a-z0-9][a-z0-9\-]+)"', body):
+            url = f'https://www.theaivalley.com{match.group(1)}'
+            if url in seen:
+                continue
+            card = body[match.start():match.start() + 8000]
+            date_match = re.search(r'<time[^>]+dateTime="([^"]+)"', card, flags=re.I)
+            dt = parse_date(html.unescape(date_match.group(1))) if date_match else None
+            if not in_window(dt, today, yesterday):
+                continue
+            title_match = re.search(r'<h2[^>]*>(.*?)</h2>', card, flags=re.I | re.S)
+            summary_match = re.search(r'<p[^>]*>(.*?)</p>', card, flags=re.I | re.S)
+            title = strip_html(title_match.group(1)) if title_match else ''
+            if not title:
+                continue
+            seen.add(url)
+            articles.append({
+                'title': title, 'url': url, 'source': 'The AI Valley',
+                'category': 'Independent News', 'date': format_date(dt),
+                'summary': truncate(strip_html(summary_match.group(1)) if summary_match else ''),
+            })
+
+        print(
+            f'[OK] The AI Valley ({len(articles)} articles; homepage fallback)',
+            file=sys.stderr,
+        )
+        return articles
+    except Exception as error:
+        print(f'[FAIL] The AI Valley: RSS and homepage fallback failed — {error}', file=sys.stderr)
+        return []
 
 
 def fetch_rss_source(name, category, rss_urls, today, yesterday):
@@ -429,14 +534,6 @@ RSS_SOURCES = [
         "rss_urls": [
             "https://openai.com/news/rss.xml",
             "https://openai.com/feed.xml",
-        ],
-    },
-    {
-        "name": "The AI Valley",
-        "category": "Independent News",
-        "rss_urls": [
-            "https://www.theaivalley.com/feed/",
-            "https://www.theaivalley.com/feed",
         ],
     },
     {
@@ -488,6 +585,7 @@ def main():
     # Sitemap-based sources (parallel-ish via sequential calls — fast enough)
     results.extend(fetch_anthropic(today, yesterday))
     results.extend(fetch_claude_blog(today, yesterday))
+    results.extend(fetch_the_ai_valley(today, yesterday))
 
     # Every.to migrated away from its newsletter feeds; use the sitemap-backed
     # discovery path first and retain the old feeds only as a transport fallback.
