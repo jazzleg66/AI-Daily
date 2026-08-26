@@ -14,7 +14,7 @@ Every day, run one command in Claude Code:
 
 Claude will:
 1. Fetch today's AI news from Anthropic, OpenAI, Claude Blog, The AI Valley, smol.ai, and Every.to
-2. Pull the latest videos from 10 AI YouTube channels
+2. Pull the latest long-form videos from 10 AI YouTube channels (YouTube Shorts excluded)
 3. Scrape top posts from 18 AI accounts on X.com (filtered for AI relevance)
 4. Save a bilingual Markdown digest
 5. Ask if you want an HTML newspaper — in **Rationalist** or **Modernism** style (or both)
@@ -149,7 +149,7 @@ Point your agent at that file as a system prompt or context document. Scripts an
 ### Customise your sources
 
 - **News:** Edit `fetch_news.py` to add or remove sites
-- **YouTube channels:** Edit `CHANNELS` in `fetch_youtube.py`
+- **YouTube channels:** Edit `CHANNELS` in `fetch_youtube.py`; the fetcher keeps long-form videos and excludes Shorts
 - **X.com accounts:** Edit `X_ACCOUNTS` in `fetch_x.py`
 - **AI keyword filter:** Edit `AI_KEYWORDS` in `fetch_x.py` to tune what counts as AI-relevant
 

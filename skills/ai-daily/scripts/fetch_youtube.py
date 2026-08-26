@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch current-window videos from the configured AI YouTube channels."""
+"""Fetch current-window long-form videos from the configured AI channels."""
 import html
 import json
 import re
@@ -46,6 +46,48 @@ NS = {
     'media': 'http://search.yahoo.com/mrss/',
 }
 
+SHORTS_URL_RE = re.compile(
+    r'https?://(?:www\.)?youtube\.com/shorts(?:/|[?#])',
+    flags=re.I,
+)
+
+
+def is_shorts_url(url):
+    return bool(SHORTS_URL_RE.search(url or ''))
+
+
+def is_shorts_page(body):
+    """Detect Shorts in HTML fallback pages before normalizing to /watch URLs."""
+    for tag in re.findall(r'<link\b[^>]*>', body, flags=re.I):
+        rel_match = re.search(r'\brel=["\']([^"\']+)', tag, flags=re.I)
+        href_match = re.search(r'\bhref=["\']([^"\']+)', tag, flags=re.I)
+        if (
+            rel_match
+            and 'canonical' in rel_match.group(1).lower().split()
+            and href_match
+            and is_shorts_url(html.unescape(href_match.group(1)))
+        ):
+            return True
+
+    for tag in re.findall(r'<meta\b[^>]*>', body, flags=re.I):
+        property_match = re.search(r'\bproperty=["\']([^"\']+)', tag, flags=re.I)
+        content_match = re.search(r'\bcontent=["\']([^"\']+)', tag, flags=re.I)
+        if (
+            property_match
+            and property_match.group(1).lower() == 'og:url'
+            and content_match
+            and is_shorts_url(html.unescape(content_match.group(1)))
+        ):
+            return True
+
+    return bool(
+        re.search(
+            r'"(?:isShorts|isShortsVideo|isShortsEligible)"\s*:\s*true',
+            body,
+            flags=re.I,
+        )
+    )
+
 
 def fetch_url(url, retries=3, timeout=15):
     last_error = None
@@ -83,7 +125,7 @@ def parse_feed(name, xml_data, today, yesterday, beijing_tz):
         if published_date not in (today, yesterday):
             continue
         url = link_el.get('href', '') if link_el is not None else ''
-        if not title_el.text or not url:
+        if not title_el.text or not url or is_shorts_url(url):
             continue
         videos.append({
             "channel": name,
@@ -95,6 +137,9 @@ def parse_feed(name, xml_data, today, yesterday, beijing_tz):
 
 
 def parse_video_page(video_id, body, today, yesterday, beijing_tz, channel):
+    if is_shorts_page(body):
+        return None
+
     date_patterns = (
         r'<meta[^>]+itemprop="datePublished"[^>]+content="([^"]+)"',
         r'<meta[^>]+itemprop="uploadDate"[^>]+content="([^"]+)"',
@@ -134,6 +179,34 @@ def parse_video_page(video_id, body, today, yesterday, beijing_tz, channel):
     }
 
 
+def fetch_video_page(video_id, today, yesterday, beijing_tz, channel):
+    """Fetch a fallback item and reject Shorts using the final redirect URL."""
+    last_error = None
+    for attempt in range(3):
+        if attempt > 0:
+            time.sleep(2 ** attempt)
+        try:
+            request = urllib.request.Request(
+                f'https://www.youtube.com/shorts/{video_id}?hl=en',
+                headers={'User-Agent': 'Mozilla/5.0'},
+            )
+            with urllib.request.urlopen(request, timeout=20) as response:
+                final_url = response.geturl()
+                body = response.read().decode('utf-8', errors='ignore')
+            if is_shorts_url(final_url):
+                return None
+            video = parse_video_page(video_id, body, today, yesterday, beijing_tz, channel)
+            if video is not None or final_url == request.full_url:
+                return video
+            # A redirect response can omit publish metadata; fetch the final
+            # long-form URL once more so the existing metadata parser sees it.
+            body = fetch_url(final_url, timeout=20).decode('utf-8', errors='ignore')
+            return parse_video_page(video_id, body, today, yesterday, beijing_tz, channel)
+        except Exception as error:
+            last_error = error
+    raise last_error
+
+
 def fetch_html_fallback(name, handle, today, yesterday, beijing_tz):
     listing_url = f'https://www.youtube.com/@{handle}/videos?hl=en'
     listing = fetch_url(listing_url, timeout=20).decode('utf-8', errors='ignore')
@@ -142,11 +215,7 @@ def fetch_html_fallback(name, handle, today, yesterday, beijing_tz):
         raise ValueError('channel page contained no video IDs')
 
     def fetch_one(video_id):
-        body = fetch_url(
-            f'https://www.youtube.com/watch?v={video_id}&hl=en',
-            timeout=20,
-        ).decode('utf-8', errors='ignore')
-        return parse_video_page(video_id, body, today, yesterday, beijing_tz, name)
+        return fetch_video_page(video_id, today, yesterday, beijing_tz, name)
 
     videos = []
     verified_pages = 0
@@ -191,7 +260,10 @@ def main():
             xml_data = fetch_rss(channel_id)
             videos = parse_feed(name, xml_data, today, yesterday, beijing_tz)
             results.extend(videos)
-            print(f'[OK] YouTube/{name} ({len(videos)} videos; RSS)', file=sys.stderr)
+            print(
+                f'[OK] YouTube/{name} ({len(videos)} videos; RSS; Shorts excluded)',
+                file=sys.stderr,
+            )
             continue
         except Exception as rss_error:
             handle = CHANNEL_HANDLES.get(name)
@@ -199,8 +271,8 @@ def main():
                 videos = fetch_html_fallback(name, handle, today, yesterday, beijing_tz)
                 results.extend(videos)
                 print(
-                    f'[OK] YouTube/{name} ({len(videos)} videos; HTML fallback after '
-                    f'RSS {describe_error(rss_error)})',
+                    f'[OK] YouTube/{name} ({len(videos)} videos; HTML fallback; '
+                    f'Shorts excluded; RSS {describe_error(rss_error)})',
                     file=sys.stderr,
                 )
                 continue
@@ -229,7 +301,8 @@ def main():
         )
     else:
         print(
-            f'[OK] YouTube ({len(results)} videos; all {len(CHANNELS)} channels reachable)',
+            f'[OK] YouTube ({len(results)} long-form videos; all {len(CHANNELS)} '
+            'channels reachable; Shorts excluded)',
             file=sys.stderr,
         )
     return 0

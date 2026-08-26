@@ -9,7 +9,9 @@
 - https://every.to/ (posts sitemap + article metadata; legacy newsletter RSS fallback)
 
 ## YouTube Channels (fetch_youtube.py)
-Configured inside the script — edit `CHANNELS` to add or remove channels.
+Configured inside the script — edit `CHANNELS` to add or remove channels. The
+fetcher keeps long-form videos only and excludes YouTube Shorts on both RSS and
+HTML fallback paths.
 
 ## X.com Accounts (fetch_x.py)
 Configured inside the script — edit `X_ACCOUNTS` to track your preferred AI accounts.

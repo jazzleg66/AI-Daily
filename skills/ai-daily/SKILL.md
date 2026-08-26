@@ -73,7 +73,7 @@ The scripts also write machine-readable status markers to stderr. An empty JSON
 array is not, by itself, proof that a source was reachable.
 
 **Script outputs:**
-- `fetch_youtube.py` → JSON array of videos from subscribed AI channels
+- `fetch_youtube.py` → JSON array of long-form videos from subscribed AI channels; YouTube Shorts are excluded
 - `fetch_x.py` → JSON array of posts sorted by engagement (takes 1-2 min)
 - `fetch_news.py` → JSON array with `title, url, source, category, date, summary`; stderr shows `[OK]` / `[FAIL]` per source
 
@@ -93,7 +93,8 @@ following before writing the digest:
      `[WARN]` with a working fallback; `[XML ERROR]` without a later fallback
      `[OK]` is a failure.
    - `fetch_youtube.py`: each channel is reported; 0 videos is valid only when
-     the channel feed is `[OK]`.
+     the channel feed is `[OK]`. Every returned URL must be a long-form video
+     URL; any `/shorts/` URL is a validation failure.
    - `fetch_x.py`: there must be an `[OK] X.com` line showing at least one
      account succeeded. 0 posts can be a valid slow-news result only with that
      line. `[FAIL]`, credential errors, transaction-id/parser errors, or all
@@ -315,7 +316,7 @@ Chinese panel: tag = `周末`, title = `今日无文章`, summary in Chinese, da
 **Content selection rules (both styles):**
 - Spotlight hero: pick the single most important article (Official Updates first, then top news)
 - Rationalist YouTube hero: pick the most relevant or highest-quality video; remaining go to cards
-- Modernism YouTube: no hero — all videos go into the card grid
+- Modernism YouTube: no hero — all long-form videos go into the card grid; exclude Shorts
 - X.com posts: include all posts sorted by likes descending
 - Both EN and CN panels share the same URLs and source names — only titles, summaries, tags, post bodies, and date formats differ by language
 
