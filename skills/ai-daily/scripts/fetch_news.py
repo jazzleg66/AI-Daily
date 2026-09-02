@@ -74,7 +74,7 @@ def parse_date(date_str):
         return dt if dt.tzinfo else dt.replace(tzinfo=BEIJING_TZ)
     except Exception:
         pass
-    for fmt in ('%b %d, %Y', '%B %d, %Y', '%b %d %Y', '%B %d %Y'):
+    for fmt in ('%b %d, %Y', '%B %d, %Y', '%b %d %Y', '%B %d %Y', '%B %Y', '%b %Y'):
         try:
             return datetime.strptime(s, fmt).replace(tzinfo=BEIJING_TZ)
         except ValueError:
@@ -120,15 +120,38 @@ def parse_anthropic_page_date(body):
             if dt:
                 return dt
 
+    for time_match in re.finditer(r'<time\b[^>]*>([^<]+)</time>', body):
+        dt = parse_date(strip_html(time_match.group(1)))
+        if dt:
+            return dt
+
     title_match = re.search(r'<h1\b[^>]*>.*?</h1>', body, flags=re.S)
     if title_match:
-        tail = body[title_match.end():title_match.end() + 1200]
+        surrounding = body[max(0, title_match.start() - 600):min(len(body), title_match.end() + 1200)]
         date_match = re.search(
             r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}\b',
-            strip_html(tail),
+            strip_html(surrounding),
         )
         if date_match:
             return parse_date(date_match.group(0))
+
+    date_matches = re.findall(
+        r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}\b',
+        strip_html(body[:4000]),
+    )
+    for dm in date_matches:
+        dt = parse_date(dm)
+        if dt:
+            return dt
+
+    month_year_match = re.search(
+        r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\b',
+        strip_html(body[:4000]),
+    )
+    if month_year_match:
+        dt = parse_date(month_year_match.group(0))
+        if dt:
+            return dt
 
     return None
 
@@ -204,6 +227,8 @@ def fetch_anthropic(today, yesterday):
     """Discover from News and sitemap, then verify each page's publish date."""
     articles = []
     candidates = []
+    listing_dates = {}
+    sitemap_dates = {}
     listing_has_recent_date = False
 
     # The visible listing is the primary discovery source. It is updated for
@@ -211,10 +236,14 @@ def fetch_anthropic(today, yesterday):
     try:
         listing = fetch('https://www.anthropic.com/news').decode('utf-8', errors='ignore')
         listing_has_recent_date = has_window_human_date(listing, today, yesterday)
-        candidates.extend(
-            f'https://www.anthropic.com{path}'
-            for path in re.findall(r'href="(/news/[a-z0-9][a-z0-9\-]+)"', listing)
-        )
+        for path in re.findall(r'href="(/news/[a-z0-9\-]+|/research/[a-z0-9\-]+|/claude-[a-z0-9\-]+)"', listing):
+            candidates.append(f'https://www.anthropic.com{path}')
+
+        for m in re.finditer(r'<a[^>]+href="(/[^"#?]+)"[^>]*>.*?<time[^>]*>([^<]+)</time>', listing, re.S):
+            c_path = m.group(1)
+            c_date = parse_date(m.group(2))
+            if c_date:
+                listing_dates[f'https://www.anthropic.com{c_path}'] = c_date
     except Exception as e:
         print(f'[WARN] Anthropic News listing: {e}', file=sys.stderr)
 
@@ -225,10 +254,13 @@ def fetch_anthropic(today, yesterday):
         root = ET.fromstring(xml_bytes)
         ns = {'sm': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
         for url_el in root.findall('.//sm:url', ns):
-            loc = url_el.findtext('sm:loc', namespaces=ns) or ''
-            mod = url_el.findtext('sm:lastmod', namespaces=ns) or ''
-            if '/news/' in loc and in_window(parse_date(mod), today, yesterday):
+            loc = (url_el.findtext('sm:loc', namespaces=ns) or '').strip()
+            mod = (url_el.findtext('sm:lastmod', namespaces=ns) or '').strip()
+            mod_dt = parse_date(mod)
+            if any(k in loc for k in ('/news/', '/research/', '/claude-')) and in_window(mod_dt, today, yesterday):
                 candidates.append(loc)
+                if mod_dt:
+                    sitemap_dates[loc] = mod_dt
     except Exception as e:
         print(f'[WARN] Anthropic sitemap: {e}', file=sys.stderr)
 
@@ -241,7 +273,7 @@ def fetch_anthropic(today, yesterday):
     for url in candidates:
         try:
             body = fetch(url).decode('utf-8', errors='ignore')
-            dt = parse_anthropic_page_date(body)
+            dt = parse_anthropic_page_date(body) or listing_dates.get(url) or sitemap_dates.get(url)
             if not in_window(dt, today, yesterday):
                 continue
             title_match = re.search(r'<title>([^<|]+)', body)
@@ -249,6 +281,7 @@ def fetch_anthropic(today, yesterday):
             summary = get_meta(body, 'og:description')
             if not title:
                 continue
+            title = re.sub(r'\s*[\\|]\s*Anthropic.*$', '', title).strip()
             articles.append({
                 "title": title, "url": url, "source": "Anthropic",
                 "category": "Official Update", "date": format_date(dt),
@@ -533,7 +566,7 @@ RSS_SOURCES = [
         "category": "Official Update",
         "rss_urls": [
             "https://openai.com/news/rss.xml",
-            "https://openai.com/feed.xml",
+            "https://openai.com/blog/rss.xml",
         ],
     },
     {
