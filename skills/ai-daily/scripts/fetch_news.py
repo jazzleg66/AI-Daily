@@ -194,6 +194,13 @@ def parse_rss_or_atom(xml_bytes, source_name, category, today, yesterday):
             desc  = strip_html(item.findtext('description', ''))
             if not title or not link or not in_window(pub, today, yesterday):
                 continue
+            if not desc and link:
+                try:
+                    page_bytes = fetch(link, timeout=8, retries=1)
+                    page_body = page_bytes.decode('utf-8', errors='ignore')
+                    desc = get_meta(page_body, 'og:description') or get_meta(page_body, 'description')
+                except Exception:
+                    pass
             articles.append({
                 "title": title, "url": link, "source": source_name,
                 "category": category, "date": format_date(pub),
@@ -213,6 +220,13 @@ def parse_rss_or_atom(xml_bytes, source_name, category, today, yesterday):
             desc  = strip_html(sum_el.text if sum_el is not None else '')
             if not title or not link or not in_window(pub, today, yesterday):
                 continue
+            if not desc and link:
+                try:
+                    page_bytes = fetch(link, timeout=8, retries=1)
+                    page_body = page_bytes.decode('utf-8', errors='ignore')
+                    desc = get_meta(page_body, 'og:description') or get_meta(page_body, 'description')
+                except Exception:
+                    pass
             articles.append({
                 "title": title, "url": link, "source": source_name,
                 "category": category, "date": format_date(pub),
@@ -561,6 +575,20 @@ def fetch_rss_source(name, category, rss_urls, today, yesterday):
 
 
 RSS_SOURCES = [
+    {
+        "name": "Google DeepMind",
+        "category": "Official Update",
+        "rss_urls": [
+            "https://deepmind.google/blog/rss.xml",
+        ],
+    },
+    {
+        "name": "Google",
+        "category": "Official Update",
+        "rss_urls": [
+            "https://blog.google/technology/ai/rss/",
+        ],
+    },
     {
         "name": "OpenAI",
         "category": "Official Update",

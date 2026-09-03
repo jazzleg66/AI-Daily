@@ -1,6 +1,6 @@
 ---
 name: ai-daily
-description: Daily AI news briefing skill. Fetches today's content from independent news sites, YouTube AI channels, X.com AI accounts, and Anthropic/OpenAI/Claude official blogs. Outputs a bilingual (Chinese + English) Markdown digest. HTML newspaper layout is optional — ask the user after the Markdown is shown. Use when the user says "daily brief", "AI news", "today's brief", "每日简报", "AI日报", or asks for today's AI news.
+description: Daily AI news briefing skill. Fetches today's content from independent news sites, YouTube AI channels, X.com AI accounts, and Google DeepMind/Anthropic/OpenAI/Claude official blogs. Outputs a bilingual (Chinese + English) Markdown digest. HTML newspaper layout is optional — ask the user after the Markdown is shown. Use when the user says "daily brief", "AI news", "today's brief", "每日简报", "AI日报", or asks for today's AI news.
 ---
 
 # AI Daily — Daily AI Brief
