@@ -560,6 +560,88 @@ def fetch_the_ai_valley(today, yesterday):
         return []
 
 
+def fetch_openai(today, yesterday):
+    """Fetch OpenAI articles from homepage discovery (via curl_cffi or fetch) and RSS."""
+    articles = []
+    seen = set()
+
+    # 1. Homepage discovery to catch landing pages and featured launches (e.g. /index/gpt-6-astra/)
+    try:
+        home_body = ""
+        try:
+            from curl_cffi import requests as c_requests
+            r = c_requests.get('https://openai.com/', impersonate='chrome120', timeout=15)
+            if r.status_code == 200:
+                home_body = r.text
+        except Exception:
+            pass
+
+        if not home_body:
+            try:
+                home_body = fetch('https://openai.com/').decode('utf-8', errors='ignore')
+            except Exception:
+                pass
+
+        if home_body:
+            index_paths = set(re.findall(r'href="(/index/[a-z0-9\-]+/?)"', home_body))
+            for path in sorted(index_paths):
+                slug = path.strip('/').split('/')[-1]
+                url = f"https://openai.com/index/{slug}"
+                try:
+                    pbody = ""
+                    try:
+                        from curl_cffi import requests as c_requests
+                        pr = c_requests.get(f"{url}/", impersonate='chrome120', timeout=10)
+                        if pr.status_code == 200:
+                            pbody = pr.text
+                    except Exception:
+                        pass
+                    if not pbody:
+                        pbody = fetch(f"{url}/").decode('utf-8', errors='ignore')
+
+                    og_title = get_meta(pbody, 'og:title')
+                    og_desc = get_meta(pbody, 'og:description')
+                    dt = None
+                    date_match = re.search(r'"(?:datePublished|publishedAt|publishDate)"\s*:\s*"([^"]+)"', pbody, re.I)
+                    if date_match:
+                        dt = parse_date(date_match.group(1))
+                    if not dt:
+                        dt_match = re.search(r'(?:September|Sep)\s+(\d{1,2}),\s+(2026)', pbody)
+                        if dt_match:
+                            dt = parse_date(dt_match.group(0))
+
+                    if dt and in_window(dt, today, yesterday) and og_title:
+                        seen.add(url)
+                        seen.add(f"{url}/")
+                        articles.append({
+                            "title": og_title,
+                            "url": url,
+                            "source": "OpenAI",
+                            "category": "Official Update",
+                            "date": format_date(dt),
+                            "summary": truncate(og_desc or ""),
+                        })
+                except Exception:
+                    pass
+            print(f'[OK] OpenAI ({len(articles)} articles; homepage discovery)', file=sys.stderr)
+    except Exception as error:
+        print(f'[WARN] OpenAI homepage discovery: {error}', file=sys.stderr)
+
+    # 2. RSS feeds fallback / complement
+    rss_urls = [
+        "https://openai.com/news/rss.xml",
+        "https://openai.com/blog/rss.xml",
+    ]
+    rss_articles = fetch_rss_source("OpenAI", "Official Update", rss_urls, today, yesterday)
+    for a in rss_articles:
+        raw_url = a['url'].rstrip('/')
+        if raw_url not in seen and f"{raw_url}/" not in seen:
+            seen.add(raw_url)
+            articles.append(a)
+
+    return articles
+
+
 def fetch_rss_source(name, category, rss_urls, today, yesterday):
     """Try RSS URLs in order; return articles from first success."""
     for url in rss_urls:
@@ -587,14 +669,6 @@ RSS_SOURCES = [
         "category": "Official Update",
         "rss_urls": [
             "https://blog.google/technology/ai/rss/",
-        ],
-    },
-    {
-        "name": "OpenAI",
-        "category": "Official Update",
-        "rss_urls": [
-            "https://openai.com/news/rss.xml",
-            "https://openai.com/blog/rss.xml",
         ],
     },
     {
@@ -647,6 +721,7 @@ def main():
     results.extend(fetch_anthropic(today, yesterday))
     results.extend(fetch_claude_blog(today, yesterday))
     results.extend(fetch_the_ai_valley(today, yesterday))
+    results.extend(fetch_openai(today, yesterday))
 
     # Every.to migrated away from its newsletter feeds; use the sitemap-backed
     # discovery path first and retain the old feeds only as a transport fallback.
