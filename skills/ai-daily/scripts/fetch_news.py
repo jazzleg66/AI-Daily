@@ -242,7 +242,6 @@ def fetch_anthropic(today, yesterday):
     articles = []
     candidates = []
     listing_dates = {}
-    sitemap_dates = {}
     listing_has_recent_date = False
 
     # The visible listing is the primary discovery source. It is updated for
@@ -253,11 +252,35 @@ def fetch_anthropic(today, yesterday):
         for path in re.findall(r'href="(/news/[a-z0-9\-]+|/research/[a-z0-9\-]+|/claude-[a-z0-9\-]+)"', listing):
             candidates.append(f'https://www.anthropic.com{path}')
 
-        for m in re.finditer(r'<a[^>]+href="(/[^"#?]+)"[^>]*>.*?<time[^>]*>([^<]+)</time>', listing, re.S):
-            c_path = m.group(1)
-            c_date = parse_date(m.group(2))
+        # 1. Extract from cards where <a> contains <time>
+        for card in re.finditer(r'<a\b[^>]*href="(/[^"#?]+)"[^>]*>([\s\S]*?)</a>', listing):
+            href = card.group(1)
+            time_m = re.search(r'<time[^>]*>([^<]+)</time>', card.group(2))
+            if time_m:
+                c_date = parse_date(time_m.group(1))
+                if c_date:
+                    listing_dates[f'https://www.anthropic.com{href}'] = c_date
+
+        # 2. Extract from containers like <li>, <article> where <time> and <a> coexist
+        for container in re.finditer(r'<(?:li|article)\b[^>]*>([\s\S]*?)</(?:li|article)>', listing):
+            snippet = container.group(1)
+            if '<time' in snippet:
+                time_m = re.search(r'<time[^>]*>([^<]+)</time>', snippet)
+                href_m = re.search(r'href="(/news/[a-z0-9\-]+|/research/[a-z0-9\-]+|/claude-[a-z0-9\-]+|/features/[a-z0-9\-]+)"', snippet)
+                if time_m and href_m:
+                    c_date = parse_date(time_m.group(1))
+                    if c_date:
+                        listing_dates[f'https://www.anthropic.com{href_m.group(1)}'] = c_date
+
+        # 3. Extract from embedded Sanity CMS data
+        for m in re.finditer(r'"publishedOn"\s*:\s*"([^"]+)".*?"(?:url|slug)"\s*:\s*(?:\{"current"\s*:\s*"([^"]+)"\}|"([^"]+)")', listing):
+            date_str = m.group(1)
+            slug = m.group(2) or m.group(3)
+            if not slug.startswith('/'):
+                slug = f"/news/{slug}"
+            c_date = parse_date(date_str)
             if c_date:
-                listing_dates[f'https://www.anthropic.com{c_path}'] = c_date
+                listing_dates[f'https://www.anthropic.com{slug}'] = c_date
     except Exception as e:
         print(f'[WARN] Anthropic News listing: {e}', file=sys.stderr)
 
@@ -273,8 +296,6 @@ def fetch_anthropic(today, yesterday):
             mod_dt = parse_date(mod)
             if any(k in loc for k in ('/news/', '/research/', '/claude-')) and in_window(mod_dt, today, yesterday):
                 candidates.append(loc)
-                if mod_dt:
-                    sitemap_dates[loc] = mod_dt
     except Exception as e:
         print(f'[WARN] Anthropic sitemap: {e}', file=sys.stderr)
 
@@ -287,7 +308,8 @@ def fetch_anthropic(today, yesterday):
     for url in candidates:
         try:
             body = fetch(url).decode('utf-8', errors='ignore')
-            dt = parse_anthropic_page_date(body) or listing_dates.get(url) or sitemap_dates.get(url)
+            # Only use real article publish dates, NEVER sitemap lastmod!
+            dt = parse_anthropic_page_date(body) or listing_dates.get(url)
             if not in_window(dt, today, yesterday):
                 continue
             title_match = re.search(r'<title>([^<|]+)', body)
@@ -759,4 +781,5 @@ def main():
     sys.stdout.buffer.write(b'\n')
 
 
-main()
+if __name__ == '__main__':
+    main()
