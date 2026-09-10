@@ -14,7 +14,10 @@ All paths use `<BASE>` — the skill's base directory, which Claude Code provide
 - Scripts: `<BASE>/scripts/`
 - Templates: `<BASE>/assets/rationalist/` and `<BASE>/assets/modernism/`
 - Seed images: `<BASE>/output/` — hero images bundled with the skill
-- **Generated output: `~/.claude/ai-daily/output/`** — fixed location outside the skill, persists across updates
+- **Generated output locations:**
+  - **Workspace output (Primary):** `<WORKSPACE>/output/` (e.g. `d:/Users/Alex/AI-Daily/output/`) — for immediate viewing and access in the IDE file tree
+  - **Global backup:** `~/.claude/ai-daily/output/` (Windows: `%USERPROFILE%\.claude\ai-daily\output\`) — persistent storage across updates
+  *Always write or copy generated output files to both locations.*
 
 ## Setup Requirements
 - **X.com credentials:** `~/.claude/private/x-creds.json` (see README for details)
@@ -36,23 +39,29 @@ Beijing Time (UTC+8).
 - **Content window:** yesterday (full 24 hours) + today up to the current run time. e.g. run at 10:00 AM on 6/20 → include all 6/19 content + any 6/20 content published before 10:00 AM Beijing time.
 
 ### Step 1.5 — Initialize Output Directory (first run only)
-Check if `~/.claude/ai-daily/output/` exists. If not, create it and copy the hero images there. Run silently.
+Check if output directories exist. Create them and copy the hero images there. Run silently.
 
 ```bash
 # macOS / Linux
-mkdir -p ~/.claude/ai-daily/output
-for img in spotlight.jpg youtubepicks.jpg spotlight.png youtubepicks.png; do
-  [ ! -f ~/.claude/ai-daily/output/$img ] && cp "<BASE>/output/$img" ~/.claude/ai-daily/output/$img || true
+for dir in ~/.claude/ai-daily/output ./output; do
+  mkdir -p "$dir"
+  for img in spotlight.jpg youtubepicks.jpg spotlight.png youtubepicks.png; do
+    [ ! -f "$dir/$img" ] && cp "<BASE>/output/$img" "$dir/$img" || true
+  done
 done
 ```
 ```powershell
 # Windows
-if (-not (Test-Path "$env:USERPROFILE\.claude\ai-daily\output")) { New-Item -ItemType Directory -Path "$env:USERPROFILE\.claude\ai-daily\output" -Force | Out-Null }
-foreach ($img in @("spotlight.jpg","youtubepicks.jpg","spotlight.png","youtubepicks.png")) {
-  $dst = "$env:USERPROFILE\.claude\ai-daily\output\$img"
-  if (-not (Test-Path $dst)) { Copy-Item "<BASE>\output\$img" $dst }
+$dirs = @("$env:USERPROFILE\.claude\ai-daily\output", "output")
+foreach ($d in $dirs) {
+  if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+  foreach ($img in @("spotlight.jpg","youtubepicks.jpg","spotlight.png","youtubepicks.png")) {
+    $dst = Join-Path $d $img
+    if (-not (Test-Path $dst)) { Copy-Item "<BASE>\output\$img" $dst -Force }
+  }
 }
 ```
+
 
 ### Step 2 — Run All Fetch Scripts (parallel)
 
@@ -131,31 +140,46 @@ are explicitly recorded, continue without silently presenting them as empty.
 
 ### Step 4 — Save Markdown File & Ask About HTML
 
-Save the full digest as a Markdown file:
+Save the full digest as a Markdown file to BOTH the workspace output directory (for direct IDE access) and the persistent global backup directory:
 
-- macOS/Linux: `~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md`
-- Windows: `%USERPROFILE%\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md`
+- **Workspace (Primary):** `<WORKSPACE>/output/daily-brief-YYYY-MM-DD.md`
+- **Global backup:**
+  - Windows: `%USERPROFILE%\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md`
+  - macOS/Linux: `~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md`
 
 Then open it:
 ```powershell
 # Windows
-$brief = "$env:USERPROFILE\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md"
-if (-not (Test-Path -LiteralPath $brief) -or (Get-Item -LiteralPath $brief).Length -eq 0) {
-  throw "AI Daily Markdown was not written or is empty: $brief"
+$globalBrief = "$env:USERPROFILE\.claude\ai-daily\output\daily-brief-YYYY-MM-DD.md"
+$wsBrief = "output\daily-brief-YYYY-MM-DD.md"
+if (-not (Test-Path -LiteralPath $globalBrief) -or (Get-Item -LiteralPath $globalBrief).Length -eq 0) {
+  throw "AI Daily Markdown was not written or is empty: $globalBrief"
 }
-$body = Get-Content -LiteralPath $brief -Raw -Encoding utf8
+$body = Get-Content -LiteralPath $globalBrief -Raw -Encoding utf8
 if ($body -notmatch '^# AI Daily Brief — \d{4}-\d{2}-\d{2}' -or
     $body -notmatch '# 中文版' -or $body -notmatch '# English Version') {
-  throw "AI Daily Markdown failed structural verification: $brief"
+  throw "AI Daily Markdown failed structural verification: $globalBrief"
 }
-# A fresh VS Code window prevents an old dirty/empty editor buffer for the
-# same path from hiding the newly written file.
-Start-Process code -ArgumentList '--new-window', $brief
-# macOS
-open ~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md
+# Sync to workspace output directory
+if (-not (Test-Path "output")) { New-Item -ItemType Directory -Path "output" -Force | Out-Null }
+Copy-Item -LiteralPath $globalBrief -Destination $wsBrief -Force
+
+# Open in IDE or system default
+try { Start-Process code -ArgumentList '--new-window', (Resolve-Path $wsBrief).Path } catch {}
+Invoke-Item -LiteralPath $wsBrief
+```
+```bash
+# macOS / Linux
+mkdir -p ./output
+cp ~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md ./output/daily-brief-YYYY-MM-DD.md
+open ./output/daily-brief-YYYY-MM-DD.md || open ~/.claude/ai-daily/output/daily-brief-YYYY-MM-DD.md
 ```
 
-In chat, output only a brief confirmation: filename saved, total item counts per section, and 1-line summary of the top insight.
+**Chat Output Rules:**
+In chat, output a brief confirmation with:
+1. **Clickable Links**: ALWAYS provide clickable markdown links using the `file:///` URI scheme with forward slashes (e.g. `[output/daily-brief-YYYY-MM-DD.md](file:///d:/Users/Alex/AI-Daily/output/daily-brief-YYYY-MM-DD.md)`).
+2. **Never output bare `~` on Windows**: Always output the resolved absolute path or workspace path, since Windows Explorer and run prompts cannot resolve `~`.
+3. Total item counts per section and 1-line summary of top insight.
 
 After that, ask:
 > "要生成 HTML 报纸版式吗？（输入 Y 生成并打开）"
@@ -180,7 +204,7 @@ When the user confirms HTML output, ask:
 
 **Do NOT generate HTML from scratch.** Always read the template for the chosen style, fill placeholders, expand REPEAT blocks, and save.
 
-Hero images are pre-placed in `~/.claude/ai-daily/output/` (seeded in Step 1.5) — no copying needed during HTML generation.
+Hero images are pre-placed in both output directories (seeded in Step 1.5).
 
 ---
 
@@ -188,22 +212,26 @@ Hero images are pre-placed in `~/.claude/ai-daily/output/` (seeded in Step 1.5) 
 
 **Template:** `<BASE>/assets/rationalist/template.html`
 
-**Output file:**
-- macOS/Linux: `~/.claude/ai-daily/output/r-brief-YYYY-MM-DD.html`
-- Windows: `%USERPROFILE%\.claude\ai-daily\output\r-brief-YYYY-MM-DD.html`
+**Output files (save to both):**
+- Workspace: `<WORKSPACE>/output/r-brief-YYYY-MM-DD.html`
+- Global backup:
+  - macOS/Linux: `~/.claude/ai-daily/output/r-brief-YYYY-MM-DD.html`
+  - Windows: `%USERPROFILE%\.claude\ai-daily\output\r-brief-YYYY-MM-DD.html`
 
 **Steps:**
 1. Read `<BASE>/assets/rationalist/template.html`
 2. Fill every `{{PLACEHOLDER}}` with today's content from the Markdown digest
 3. For Spotlight and YouTube Picks: expand `<!-- REPEAT ... /REPEAT -->` blocks — one `.si` card per article/video beyond the hero
-4. Save the filled HTML to the output path above
+4. Save the filled HTML to both the global backup directory and workspace `output/` directory
 5. Open the file:
 ```bash
 # Windows
-start "%USERPROFILE%\.claude\ai-daily\output\r-brief-YYYY-MM-DD.html"
+Invoke-Item "output\r-brief-YYYY-MM-DD.html"
 # macOS
-open ~/.claude/ai-daily/output/r-brief-YYYY-MM-DD.html
+open output/r-brief-YYYY-MM-DD.html
 ```
+6. In chat, provide clickable `file:///` links to the generated HTML file.
+
 
 **Layout notes:**
 - Spotlight: sticky hero card (blue caption) left + 2-col card grid right
@@ -242,9 +270,11 @@ open ~/.claude/ai-daily/output/r-brief-YYYY-MM-DD.html
 
 **Template:** `<BASE>/assets/modernism/template.html`
 
-**Output file:**
-- macOS/Linux: `~/.claude/ai-daily/output/m-brief-YYYY-MM-DD.html`
-- Windows: `%USERPROFILE%\.claude\ai-daily\output\m-brief-YYYY-MM-DD.html`
+**Output files (save to both):**
+- Workspace: `<WORKSPACE>/output/m-brief-YYYY-MM-DD.html`
+- Global backup:
+  - macOS/Linux: `~/.claude/ai-daily/output/m-brief-YYYY-MM-DD.html`
+  - Windows: `%USERPROFILE%\.claude\ai-daily\output\m-brief-YYYY-MM-DD.html`
 
 **Steps:**
 1. Read `<BASE>/assets/modernism/template.html`
@@ -252,14 +282,16 @@ open ~/.claude/ai-daily/output/r-brief-YYYY-MM-DD.html
 3. For Spotlight stack: expand `<!-- REPEAT .stack-item /REPEAT -->` — one `.stack-item` per article beyond the hero (stack items have no summary, only tag + title + byline + CTA)
 4. For YouTube Picks: expand `<!-- REPEAT .card /REPEAT -->` — one `.card` per video (all videos are cards; there is no separate hero video)
 5. For X.com: expand `<!-- REPEAT .x-row /REPEAT -->` — one `.x-row` per post
-6. Save the filled HTML to the output path above
+6. Save the filled HTML to both the global backup directory and workspace `output/` directory
 7. Open the file:
 ```bash
 # Windows
-start "%USERPROFILE%\.claude\ai-daily\output\m-brief-YYYY-MM-DD.html"
+Invoke-Item "output\m-brief-YYYY-MM-DD.html"
 # macOS
-open ~/.claude/ai-daily/output/m-brief-YYYY-MM-DD.html
+open output/m-brief-YYYY-MM-DD.html
 ```
+8. In chat, provide clickable `file:///` links to the generated HTML file.
+
 
 **Layout notes:**
 - Masthead: large EB Garamond "AI Daily" that shrinks on scroll (JS-driven)

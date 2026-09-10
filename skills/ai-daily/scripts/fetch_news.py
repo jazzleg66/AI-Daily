@@ -296,13 +296,17 @@ def fetch_anthropic(today, yesterday):
             mod_dt = parse_date(mod)
             if any(k in loc for k in ('/news/', '/research/', '/claude-')) and in_window(mod_dt, today, yesterday):
                 candidates.append(loc)
+
+
     except Exception as e:
         print(f'[WARN] Anthropic sitemap: {e}', file=sys.stderr)
 
     candidates = list(dict.fromkeys(candidates))
+    candidates = [c for c in candidates if '/team/' not in c and '/overview' not in c]
     if not candidates:
         print('[FAIL] Anthropic: no listing or sitemap candidates', file=sys.stderr)
         return []
+
 
     page_failures = 0
     for url in candidates:
@@ -583,32 +587,63 @@ def fetch_the_ai_valley(today, yesterday):
 
 
 def fetch_openai(today, yesterday):
-    """Fetch OpenAI articles from homepage discovery (via curl_cffi or fetch) and RSS."""
+    """Fetch OpenAI articles from official RSS and /news/ stream."""
     articles = []
     seen = set()
 
-    # 1. Homepage discovery to catch landing pages and featured launches (e.g. /index/gpt-6-astra/)
+    # 1. Primary: Official RSS feeds (authoritative pubDate and clean summaries)
+    rss_urls = [
+        "https://openai.com/news/rss.xml",
+        "https://openai.com/blog/rss.xml",
+    ]
+    for url in rss_urls:
+        try:
+            xml_bytes = fetch(url)
+            rss_items = parse_rss_or_atom(xml_bytes, "OpenAI", "Official Update", today, yesterday)
+            for a in rss_items:
+                raw_url = a['url'].rstrip('/')
+                if raw_url not in seen and f"{raw_url}/" not in seen:
+                    seen.add(raw_url)
+                    articles.append(a)
+            if rss_items:
+                print(f'[OK] OpenAI ({len(rss_items)} articles) — {url}', file=sys.stderr)
+                break
+        except Exception as error:
+            print(f'[WARN] OpenAI RSS {url}: {error}', file=sys.stderr)
+
+    # 2. Supplemental: News stream page (https://openai.com/news/) to catch recent posts
+    # not yet syndicated in RSS. Only check dedicated news cards, never the root homepage.
     try:
-        home_body = ""
+        news_body = ""
         try:
             from curl_cffi import requests as c_requests
-            r = c_requests.get('https://openai.com/', impersonate='chrome120', timeout=15)
+            r = c_requests.get('https://openai.com/news/', impersonate='chrome120', timeout=15)
             if r.status_code == 200:
-                home_body = r.text
+                news_body = r.text
         except Exception:
             pass
 
-        if not home_body:
+        if not news_body:
             try:
-                home_body = fetch('https://openai.com/').decode('utf-8', errors='ignore')
+                news_body = fetch('https://openai.com/news/').decode('utf-8', errors='ignore')
             except Exception:
                 pass
 
-        if home_body:
-            index_paths = set(re.findall(r'href="(/index/[a-z0-9\-]+/?)"', home_body))
-            for path in sorted(index_paths):
+        if news_body:
+            # On /news/, each card has href="/index/..." and an explicit dateTime or human date
+            card_matches = re.findall(
+                r'href="(/index/[a-z0-9\-]+/?)"[^>]*>[\s\S]*?(?:dateTime="([^"]+)"|>([A-Z][a-z]+ \d{1,2}, \d{4})<)',
+                news_body
+            )
+            for path, dt_iso, dt_human in card_matches:
                 slug = path.strip('/').split('/')[-1]
                 url = f"https://openai.com/index/{slug}"
+                if url in seen or f"{url}/" in seen:
+                    continue
+                dt = parse_date(dt_iso) or parse_date(dt_human)
+                if not in_window(dt, today, yesterday):
+                    continue
+
                 try:
                     pbody = ""
                     try:
@@ -623,14 +658,16 @@ def fetch_openai(today, yesterday):
 
                     og_title = get_meta(pbody, 'og:title')
                     og_desc = get_meta(pbody, 'og:description')
-                    dt = None
-                    date_match = re.search(r'"(?:datePublished|publishedAt|publishDate)"\s*:\s*"([^"]+)"', pbody, re.I)
-                    if date_match:
-                        dt = parse_date(date_match.group(1))
-                    if not dt:
-                        dt_match = re.search(r'(?:September|Sep)\s+(\d{1,2}),\s+(2026)', pbody)
-                        if dt_match:
-                            dt = parse_date(dt_match.group(0))
+
+                    # If page date needs verification, strictly search BEFORE <h1> or in the article hero meta
+                    h1_match = re.search(r'<h1\b', pbody)
+                    if h1_match:
+                        hero_region = pbody[max(0, h1_match.start() - 600):h1_match.start()]
+                        hero_date_m = re.search(r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}\b', hero_region)
+                        if hero_date_m:
+                            hero_dt = parse_date(hero_date_m.group(0))
+                            if hero_dt:
+                                dt = hero_dt
 
                     if dt and in_window(dt, today, yesterday) and og_title:
                         seen.add(url)
@@ -645,23 +682,12 @@ def fetch_openai(today, yesterday):
                         })
                 except Exception:
                     pass
-            print(f'[OK] OpenAI ({len(articles)} articles; homepage discovery)', file=sys.stderr)
+            print(f'[OK] OpenAI ({len(articles)} total articles after /news/ check)', file=sys.stderr)
     except Exception as error:
-        print(f'[WARN] OpenAI homepage discovery: {error}', file=sys.stderr)
-
-    # 2. RSS feeds fallback / complement
-    rss_urls = [
-        "https://openai.com/news/rss.xml",
-        "https://openai.com/blog/rss.xml",
-    ]
-    rss_articles = fetch_rss_source("OpenAI", "Official Update", rss_urls, today, yesterday)
-    for a in rss_articles:
-        raw_url = a['url'].rstrip('/')
-        if raw_url not in seen and f"{raw_url}/" not in seen:
-            seen.add(raw_url)
-            articles.append(a)
+        print(f'[WARN] OpenAI /news/ stream check: {error}', file=sys.stderr)
 
     return articles
+
 
 
 def fetch_rss_source(name, category, rss_urls, today, yesterday):
