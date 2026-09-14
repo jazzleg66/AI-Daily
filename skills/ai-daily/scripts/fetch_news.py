@@ -541,6 +541,8 @@ def fetch_the_ai_valley(today, yesterday):
     for url in rss_urls:
         try:
             xml_bytes = fetch(url)
+            if xml_bytes.strip().startswith((b'<!DOCTYPE', b'<html', b'<!doctype')):
+                continue
             articles = parse_rss_or_atom(
                 xml_bytes, 'The AI Valley', 'Independent News', today, yesterday
             )

@@ -14,14 +14,15 @@ from datetime import datetime, timezone, timedelta
 CHANNELS = {
     "Y Combinator": "UCcefcZRL2oaA_uBNeo5UOWg",
     "Lenny's Podcast": "UC6t1O76G0jYXOAoYCm153dA",
-    "Peter Yang": "UC7bn50F_ujOrD6UerbAtlXw",
+    "Peter Yang": "UCnpBg7yqNauHtlNSpOl5-cg",
     "Nate Herk": "UC2ojq-nuP8ceeHqiroeKhBA",
     "Greg Isenberg": "UCPjNBjflYl0-HQtUvOx0Ibw",
-    "Aakash Gupta": "UCpvbYcuKFwa9YTo8q5L8QXA",
+    "Aakash Gupta": "UCsHBhXybRz2CCfpU0hWp7ow",
     "Every": "UCjIMtrzxYc0lblGhmOgC_CA",
     "Silicon Valley Girl": "UCiq1FIgtEK7LRAOB1JXTPig",
     "a16z": "UC9cn0TuPq4dnbTY-CBsm8XA",
     "Sequoia Capital": "UCWrF0oN6unbXrWsTN7RctTw",
+    "Jack Roberts": "UCxVxcTULO9cFU6SB9qVaisQ",
 }
 
 # HTML fallback handles are deliberately kept separate from channel IDs. RSS
@@ -30,14 +31,15 @@ CHANNELS = {
 CHANNEL_HANDLES = {
     "Y Combinator": "ycombinator",
     "Lenny's Podcast": "lennyspodcast",
-    "Peter Yang": "PeterYang",
+    "Peter Yang": "PeterYangYT",
     "Nate Herk": "nateherk",
     "Greg Isenberg": "gregisenberg",
-    "Aakash Gupta": "aakashgupta",
+    "Aakash Gupta": "growproduct",
     "Every": "EveryInc",
     "Silicon Valley Girl": "siliconvalleygirl",
     "a16z": "a16z",
     "Sequoia Capital": "sequoiacapital",
+    "Jack Roberts": "Itssssss_Jack",
 }
 
 NS = {
